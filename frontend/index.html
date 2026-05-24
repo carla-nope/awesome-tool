@@ -128,48 +128,86 @@
                         </button>
                     </div>
 
-                    <!-- Filters -->
-                    <div class="p-4 border-b border-gray-200 space-y-2">
-                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Quick Filters</p>
-                        <button data-filter="all" class="filter-btn active w-full text-left px-3 py-2 text-sm rounded-lg bg-blue-50 text-blue-700">
-                            All Emails
-                        </button>
-                        <button data-filter="unread" class="filter-btn w-full text-left px-3 py-2 text-sm rounded-lg text-gray-600 hover:bg-gray-50">
-                            Unread
-                        </button>
-                        <button data-filter="unsubscribe" class="filter-btn w-full text-left px-3 py-2 text-sm rounded-lg text-gray-600 hover:bg-gray-50">
-                            Have Unsubscribe Link
-                        </button>
-                        <button data-filter="marketing" class="filter-btn w-full text-left px-3 py-2 text-sm rounded-lg text-gray-600 hover:bg-gray-50">
-                            Marketing/Promotional
-                        </button>
-                    </div>
+                    <!-- Email Cleanup Categories -->
+                    <div class="p-4 space-y-2 flex-1 overflow-y-auto scrollbar-thin">
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Clean Up These Email Types</p>
 
-                    <!-- Smart Cleanup -->
-                    <div class="p-4 border-b border-gray-200 space-y-2">
-                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Smart Cleanup</p>
-                        <button id="cleanupOldBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-2">
-                            <span class="text-red-500">🗑️</span>
-                            <span>Old Unread (1+ year)</span>
-                        </button>
-                        <button id="cleanupCodesBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 flex items-center gap-2">
-                            <span class="text-orange-500">🔐</span>
-                            <span>Verification Codes</span>
-                        </button>
-                        <button id="cleanupNewslettersBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center gap-2">
-                            <span class="text-purple-500">📰</span>
-                            <span>Old Newsletters</span>
-                        </button>
-                        <button id="cleanupAutoBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 flex items-center gap-2">
-                            <span class="text-gray-500">📦</span>
-                            <span>Auto-Confirmations</span>
-                        </button>
-                    </div>
+                        <!-- Security & Codes -->
+                        <div class="mb-4">
+                            <p class="text-xs text-gray-400 mb-1">Security & Codes</p>
+                            <button id="cleanupCodesBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>🔐</span><span>Verification Codes</span></span>
+                                <span id="countCodes" class="text-xs bg-orange-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                            <button id="cleanupPasswordResetBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>🔑</span><span>Password Resets</span></span>
+                                <span id="countPasswordReset" class="text-xs bg-red-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                        </div>
 
-                    <!-- Category Stats -->
-                    <div class="p-4 flex-1 overflow-y-auto scrollbar-thin">
-                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Categories</p>
-                        <div id="categoryList" class="space-y-2"></div>
+                        <!-- Shopping & Orders -->
+                        <div class="mb-4">
+                            <p class="text-xs text-gray-400 mb-1">Shopping & Orders</p>
+                            <button id="cleanupShippingBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>📦</span><span>Shipping Updates</span></span>
+                                <span id="countShipping" class="text-xs bg-blue-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                            <button id="cleanupReceiptsBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-green-50 text-green-600 hover:bg-green-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>🧾</span><span>Old Receipts</span></span>
+                                <span id="countReceipts" class="text-xs bg-green-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                            <button id="cleanupCartBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>🛒</span><span>Abandoned Carts</span></span>
+                                <span id="countCart" class="text-xs bg-amber-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                        </div>
+
+                        <!-- Subscriptions & Marketing -->
+                        <div class="mb-4">
+                            <p class="text-xs text-gray-400 mb-1">Subscriptions & Marketing</p>
+                            <button id="cleanupNewslettersBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>📰</span><span>Old Newsletters</span></span>
+                                <span id="countNewsletters" class="text-xs bg-purple-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                            <button id="cleanupPromotionsBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-pink-50 text-pink-600 hover:bg-pink-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>🏷️</span><span>Promotional Sales</span></span>
+                                <span id="countPromotions" class="text-xs bg-pink-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                            <button id="cleanupExpiredTrialsBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>⏰</span><span>Expired Trials</span></span>
+                                <span id="countExpiredTrials" class="text-xs bg-indigo-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                        </div>
+
+                        <!-- Social & Notifications -->
+                        <div class="mb-4">
+                            <p class="text-xs text-gray-400 mb-1">Social & Notifications</p>
+                            <button id="cleanupSocialBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-cyan-50 text-cyan-600 hover:bg-cyan-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>👥</span><span>Social Notifications</span></span>
+                                <span id="countSocial" class="text-xs bg-cyan-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                            <button id="cleanupCommentAlertsBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>💬</span><span>Comment Alerts</span></span>
+                                <span id="countCommentAlerts" class="text-xs bg-teal-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                        </div>
+
+                        <!-- General Cleanup -->
+                        <div class="mb-4">
+                            <p class="text-xs text-gray-400 mb-1">General Cleanup</p>
+                            <button id="cleanupOldBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-gray-700 text-white hover:bg-gray-600 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>🗑️</span><span>Old Unread (1+ year)</span></span>
+                                <span id="countOld" class="text-xs bg-gray-600 px-2 py-0.5 rounded">-</span>
+                            </button>
+                            <button id="cleanupOldReadBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-slate-600 text-white hover:bg-slate-500 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>📚</span><span>Old Read (2+ years)</span></span>
+                                <span id="countOldRead" class="text-xs bg-slate-500 px-2 py-0.5 rounded">-</span>
+                            </button>
+                            <button id="cleanupAutoBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>🤖</span><span>Auto-Confirmations</span></span>
+                                <span id="countAuto" class="text-xs bg-gray-200 px-2 py-0.5 rounded">-</span>
+                            </button>
+                        </div>
                     </div>
                 </aside>
 
@@ -1124,8 +1162,17 @@ Example:
 
         // Smart Cleanup Event Handlers
         document.getElementById('cleanupOldBtn').onclick = () => loadCleanupEmails('old_unread');
+        document.getElementById('cleanupOldReadBtn').onclick = () => loadCleanupEmails('old_read');
         document.getElementById('cleanupCodesBtn').onclick = () => loadCleanupEmails('verification_codes');
-        document.getElementById('cleanupNewslettersBtn').onclick = () => loadCleanupEmails('old_newsletters');
+        document.getElementById('cleanupPasswordResetBtn').onclick = () => loadCleanupEmails('password_reset');
+        document.getElementById('cleanupShippingBtn').onclick = () => loadCleanupEmails('shipping');
+        document.getElementById('cleanupReceiptsBtn').onclick = () => loadCleanupEmails('receipts');
+        document.getElementById('cleanupCartBtn').onclick = () => loadCleanupEmails('cart');
+        document.getElementById('cleanupNewslettersBtn').onclick = () => loadCleanupEmails('newsletters');
+        document.getElementById('cleanupPromotionsBtn').onclick = () => loadCleanupEmails('promotions');
+        document.getElementById('cleanupExpiredTrialsBtn').onclick = () => loadCleanupEmails('expired_trials');
+        document.getElementById('cleanupSocialBtn').onclick = () => loadCleanupEmails('social');
+        document.getElementById('cleanupCommentAlertsBtn').onclick = () => loadCleanupEmails('comment_alerts');
         document.getElementById('cleanupAutoBtn').onclick = () => loadCleanupEmails('auto_confirmations');
 
         async function loadCleanupEmails(type) {
@@ -1134,8 +1181,17 @@ Example:
 
             const typeLabels = {
                 'old_unread': 'Old Unread (1+ year)',
+                'old_read': 'Old Read (2+ years)',
                 'verification_codes': 'Verification Codes',
-                'old_newsletters': 'Old Newsletters',
+                'password_reset': 'Password Resets',
+                'shipping': 'Shipping Updates',
+                'receipts': 'Old Receipts',
+                'cart': 'Abandoned Carts',
+                'newsletters': 'Old Newsletters',
+                'promotions': 'Promotional Sales',
+                'expired_trials': 'Expired Trials',
+                'social': 'Social Notifications',
+                'comment_alerts': 'Comment Alerts',
                 'auto_confirmations': 'Auto-Confirmations'
             };
 
@@ -1148,7 +1204,10 @@ Example:
 
                 renderEmails(state.currentEmails);
                 updatePagination();
-                showToast(`Found ${result.total} ${typeLabels[type] || type} emails`, 'info');
+
+                const count = result.total || 0;
+                const label = typeLabels[type] || type;
+                showToast(`Found ${count} ${label} emails`, count > 0 ? 'success' : 'info');
             } catch (err) {
                 showToast('Failed to load cleanup emails', 'error');
             }
