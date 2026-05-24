@@ -218,7 +218,10 @@
                 <div class="flex-1 flex flex-col">
                     <!-- Bulk Actions Bar -->
                     <div id="bulkActionsBar" class="hidden bg-blue-50 border-b border-blue-100 px-4 py-2 flex items-center justify-between">
-                        <span id="selectedCount" class="text-sm text-blue-700">0 selected</span>
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" id="selectAllCheckbox" class="w-4 h-4 rounded border-gray-300 text-blue-500 focus:ring-blue-500">
+                            <span id="selectedCount" class="text-sm text-blue-700">0 selected</span>
+                        </div>
                         <div class="flex items-center gap-2">
                             <button id="bulkUnsubscribeBtn" class="px-3 py-1 text-sm text-blue-700 hover:bg-blue-100 rounded-lg transition">
                                 Unsubscribe & Delete
@@ -227,7 +230,7 @@
                                 Delete Selected
                             </button>
                             <button id="clearSelectionBtn" class="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
-                                Clear
+                                Clear Selection
                             </button>
                         </div>
                     </div>
@@ -694,7 +697,9 @@ Example:
         function updateBulkActionsBar() {
             const bar = document.getElementById('bulkActionsBar');
             const count = document.getElementById('selectedCount');
+            const selectAll = document.getElementById('selectAllCheckbox');
             const count_val = state.selectedEmails.size;
+            const totalEmails = state.currentEmails ? state.currentEmails.length : 0;
 
             if (count_val > 0) {
                 bar.classList.remove('hidden');
@@ -702,7 +707,27 @@ Example:
             } else {
                 bar.classList.add('hidden');
             }
+
+            // Update select all checkbox state
+            if (selectAll) {
+                selectAll.checked = count_val === totalEmails && totalEmails > 0;
+                selectAll.indeterminate = count_val > 0 && count_val < totalEmails;
+            }
         }
+
+        // Select all checkbox handler
+        document.getElementById('selectAllCheckbox').onclick = (e) => {
+            const checked = e.target.checked;
+            if (checked) {
+                // Select all current emails
+                state.currentEmails.forEach(email => state.selectedEmails.add(email.id));
+            } else {
+                // Deselect all
+                state.selectedEmails.clear();
+            }
+            updateBulkActionsBar();
+            renderEmails(state.currentEmails || []);
+        };
 
         // View Email Detail
         async function viewEmail(id) {
@@ -1098,23 +1123,43 @@ Example:
         };
 
         document.getElementById('bulkUnsubscribeBtn').onclick = () => {
-            showConfirm('Unsubscribe & Delete', `Unsubscribe and delete all emails from this sender?`, async () => {
-                if (state.currentEmail) {
-                    try {
-                        const result = await api.unsubscribe(state.currentEmail.sender);
-                        if (result.success) {
-                            showToast(result.message, 'success');
-                            state.selectedEmails.clear();
-                            updateBulkActionsBar();
-                            loadEmails();
-                            loadStats();
-                        } else {
-                            showToast(result.error || 'Unsubscribe failed', 'error');
+            if (state.selectedEmails.size === 0) {
+                showToast('No emails selected', 'error');
+                return;
+            }
+            showConfirm('Unsubscribe & Delete Selected', `Unsubscribe and delete ${state.selectedEmails.size} selected email(s)?`, async () => {
+                const selectedIds = Array.from(state.selectedEmails);
+                let successCount = 0;
+                let failCount = 0;
+
+                for (const id of selectedIds) {
+                    const email = state.currentEmails.find(e => e.id === id);
+                    if (email) {
+                        try {
+                            // Try to unsubscribe first if there's an unsubscribe link
+                            if (email.has_unsubscribe && email.unsubscribe_links && email.unsubscribe_links.length > 0) {
+                                await api.visitUnsubscribeUrl(email.unsubscribe_links[0], id);
+                            }
+                            // Then delete the email
+                            const result = await api.deleteEmails([id]);
+                            if (result.success) successCount++;
+                            else failCount++;
+                        } catch (err) {
+                            failCount++;
                         }
-                    } catch (err) {
-                        showToast('Unsubscribe failed', 'error');
                     }
                 }
+
+                if (failCount === 0) {
+                    showToast(`Successfully processed ${successCount} email(s)`, 'success');
+                } else {
+                    showToast(`Processed ${successCount}, failed ${failCount}`, 'info');
+                }
+
+                state.selectedEmails.clear();
+                updateBulkActionsBar();
+                loadEmails();
+                loadStats();
             });
         };
 
@@ -1140,19 +1185,34 @@ Example:
 
         document.getElementById('unsubscribeEmailBtn').onclick = () => {
             if (state.currentEmail) {
-                showConfirm('Unsubscribe & Delete', 'Delete all emails from this sender?', async () => {
+                showConfirm('Unsubscribe & Delete All', `Delete ALL emails from ${state.currentEmail.sender}?`, async () => {
                     try {
-                        const result = await api.unsubscribe(state.currentEmail.sender);
-                        if (result.success) {
-                            showToast(result.message, 'success');
-                            document.getElementById('emailDetailPanel').classList.add('hidden');
-                            loadEmails();
-                            loadStats();
-                        } else {
-                            showToast(result.error || 'Unsubscribe failed', 'error');
+                        // Get all emails from this sender and delete them
+                        const allFromSender = state.currentEmails.filter(e => {
+                            const senderMatch = e.sender && state.currentEmail.sender &&
+                                e.sender.toLowerCase().includes(state.currentEmail.sender.split('@')[1] || state.currentEmail.sender);
+                            return senderMatch;
+                        });
+
+                        if (allFromSender.length === 0) {
+                            showToast('No more emails from this sender in current view', 'info');
+                            return;
                         }
+
+                        const ids = allFromSender.map(e => e.id);
+                        let successCount = 0;
+
+                        for (const id of ids) {
+                            const result = await api.deleteEmails([id]);
+                            if (result.success) successCount++;
+                        }
+
+                        showToast(`Deleted ${successCount} email(s) from ${state.currentEmail.sender}`, 'success');
+                        document.getElementById('emailDetailPanel').classList.add('hidden');
+                        loadEmails();
+                        loadStats();
                     } catch (err) {
-                        showToast('Unsubscribe failed', 'error');
+                        showToast('Delete failed', 'error');
                     }
                 });
             }
