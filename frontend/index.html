@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Yahoo Declutter Tool</title>
+  <title>Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900">
@@ -11,7 +11,7 @@
     <section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 mb-5">
       <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 class="text-2xl font-bold">Yahoo Declutter Tool</h1>
+          <h1 class="text-2xl font-bold">Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use</h1>
           <p class="text-sm text-slate-500 mt-1">Search, quick-pick cleanup, sender cleanup, and unsubscribe-link review. Bulk actions move messages to Trash.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -130,10 +130,17 @@
     }
 
     async function callApi(path, options = {}) {
-      const res = await fetch(API_BASE + path, options);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Request failed');
-      return data;
+      try {
+        const res = await fetch(API_BASE + path, options);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+        return data;
+      } catch (err) {
+        if (err && err.message === 'Failed to fetch') {
+          throw new Error('Could not reach the Railway backend. Redeploy or restart the Railway service, then refresh this page.');
+        }
+        throw err;
+      }
     }
 
     function escapeHtml(text) {
