@@ -610,7 +610,7 @@ def get_stats():
 # Smart Cleanup Search endpoint
 @app.route('/api/search/cleanup', methods=['GET'])
 def search_cleanup():
-    """Search for specific cleanup categories"""
+    """Search for specific cleanup categories using Yahoo Mail operators"""
     global mail_connection
 
     if mail_connection is None:
@@ -622,42 +622,44 @@ def search_cleanup():
     try:
         mail_connection.select('INBOX')
 
-        # Calculate date filters
+        # Calculate date filters (YYYY/MM/DD format for Yahoo)
         now = datetime.now()
         date_ranges = {
-            '1y': (now.replace(year=now.year - 1)).strftime('%d-%b-%Y'),
-            '2y': (now.replace(year=now.year - 2)).strftime('%d-%b-%Y'),
-            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%d-%b-%Y'),
-            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
+            '1y': now.strftime('%Y/%m/%d'),
+            '2y': (now.replace(year=now.year - 2)).strftime('%Y/%m/%d'),
+            '3y': (now.replace(year=now.year - 3)).strftime('%Y/%m/%d'),
+            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%Y/%m/%d'),
+            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%Y/%m/%d'),
         }
 
-        # Map cleanup types to simpler IMAP search criteria
+        # Yahoo-specific search combinations
         cleanup_searches = {
-            'verification_codes': 'SUBJECT "code" SINCE ' + date_ranges['6m'],
-            'password_reset': 'SUBJECT "password" SINCE ' + date_ranges['1y'],
-            'shipping': 'SUBJECT "ship" SINCE ' + date_ranges['1m'],
-            'receipts': 'SUBJECT "receipt" SINCE ' + date_ranges['1y'],
-            'cart': 'SUBJECT "cart" SINCE ' + date_ranges['6m'],
-            'newsletters': 'SUBJECT "newsletter" SINCE ' + date_ranges['6m'],
-            'promotions': 'SUBJECT "sale" SINCE ' + date_ranges['6m'],
-            'expired_trials': 'SUBJECT "trial" SINCE ' + date_ranges['6m'],
-            'social': 'SUBJECT "follower" SINCE ' + date_ranges['6m'],
-            'comment_alerts': 'SUBJECT "comment" SINCE ' + date_ranges['6m'],
-            'old_unread': 'UNSEEN',
-            'old_read': 'SEEN',
-            'auto_confirmations': 'SUBJECT "confirm" SINCE ' + date_ranges['1y'],
+            'verification_codes': f'before:{date_ranges["6m"]} "verification code"',
+            'password_reset': f'before:{date_ranges["1y"]} "reset your password"',
+            'shipping': f'before:{date_ranges["1m"]} "tracking number"',
+            'receipts': f'before:{date_ranges["1y"]} subject:receipt',
+            'cart': f'before:{date_ranges["6m"]} "left something"',
+            'newsletters': f'before:{date_ranges["6m"]} unsubscribe',
+            'promotions': f'before:{date_ranges["6m"]} subject:sale',
+            'expired_trials': f'before:{date_ranges["6m"]} "trial expired"',
+            'social': f'before:{date_ranges["6m"]} "liked your post"',
+            'comment_alerts': f'before:{date_ranges["6m"]} "commented on"',
+            'old_unread': f'UNSEEN BEFORE {date_ranges["1y"]}',
+            'old_read': f'SEEN BEFORE {date_ranges["2y"]}',
+            'auto_confirmations': f'before:{date_ranges["1y"]} "order confirmation"',
+            'attachments_old': f'has:attachment before:{date_ranges["2y"]}',
+            'noreply': f'from:noreply before:{date_ranges["1y"]}',
+            'security': f'before:{date_ranges["1y"]} "security alert"',
+            'travel': f'before:{date_ranges["1y"]} "reservation confirmed"',
+            'jobs': f'before:{date_ranges["6m"]} "job alert"',
+            'sales': f'before:{date_ranges["6m"]} "quick question"',
+            'spam': f'before:{date_ranges["6m"]} winner',
         }
 
         if cleanup_type not in cleanup_searches:
             return jsonify({'error': f'Unknown cleanup type: {cleanup_type}'}), 400
 
         search_criteria = cleanup_searches[cleanup_type]
-
-        # For old_unread/old_read, add date constraint
-        if cleanup_type == 'old_unread':
-            search_criteria = f'UNSEEN BEFORE {date_ranges["1y"]}'
-        elif cleanup_type == 'old_read':
-            search_criteria = f'SEEN BEFORE {date_ranges["2y"]}'
 
         status, messages = mail_connection.search(None, search_criteria)
 
@@ -730,25 +732,26 @@ def search_cleanup_count():
         mail_connection.select('INBOX')
         now = datetime.now()
         date_ranges = {
-            '1y': (now.replace(year=now.year - 1)).strftime('%d-%b-%Y'),
-            '2y': (now.replace(year=now.year - 2)).strftime('%d-%b-%Y'),
-            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%d-%b-%Y'),
-            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
+            '1y': now.strftime('%Y/%m/%d'),
+            '2y': (now.replace(year=now.year - 2)).strftime('%Y/%m/%d'),
+            '3y': (now.replace(year=now.year - 3)).strftime('%Y/%m/%d'),
+            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%Y/%m/%d'),
+            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%Y/%m/%d'),
         }
 
         counts = {}
         searches = [
-            ('verification_codes', f'SUBJECT "code" SINCE {date_ranges["6m"]}'),
-            ('password_reset', f'SUBJECT "password" SINCE {date_ranges["1y"]}'),
-            ('shipping', f'SUBJECT "ship" SINCE {date_ranges["1m"]}'),
-            ('receipts', f'SUBJECT "receipt" SINCE {date_ranges["1y"]}'),
-            ('newsletters', f'SUBJECT "newsletter" SINCE {date_ranges["6m"]}'),
-            ('promotions', f'SUBJECT "sale" SINCE {date_ranges["6m"]}'),
-            ('expired_trials', f'SUBJECT "trial" SINCE {date_ranges["6m"]}'),
-            ('social', f'SUBJECT "follower" SINCE {date_ranges["6m"]}'),
-            ('old_unread', f'UNSEEN BEFORE {date_ranges["1y"]}'),
-            ('old_read', f'SEEN BEFORE {date_ranges["2y"]}'),
-            ('auto_confirmations', f'SUBJECT "confirm" SINCE {date_ranges["1y"]}'),
+            ('verification_codes', f'before:{date_ranges["6m"]} "verification code"'),
+            ('password_reset', f'before:{date_ranges["1y"]} "reset your password"'),
+            ('shipping', f'before:{date_ranges["1m"]} "tracking number"'),
+            ('receipts', f'before:{date_ranges["1y"]} subject:receipt'),
+            ('newsletters', f'before:{date_ranges["6m"]} unsubscribe'),
+            ('promotions', f'before:{date_ranges["6m"]} subject:sale'),
+            ('expired_trials', f'before:{date_ranges["6m"]} "trial expired"'),
+            ('social', f'before:{date_ranges["6m"]} "liked your post"'),
+            ('old_unread', f'UNSEEN before:{date_ranges["1y"]}'),
+            ('old_read', f'SEEN before:{date_ranges["2y"]}'),
+            ('auto_confirmations', f'before:{date_ranges["1y"]} "order confirmation"'),
         ]
 
         for name, criteria in searches:
