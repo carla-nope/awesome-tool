@@ -388,9 +388,7 @@ Example:
 
     <script>
         // API Base URL - update this to your Railway backend URL
-        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? ''  // Use relative paths when running locally
-            : 'https://awesome-tool-production.up.railway.app';  // Railway backend URL
+        const API_BASE = 'https://awesome-tool-production.up.railway.app';
 
         // State Management
         const state = {
