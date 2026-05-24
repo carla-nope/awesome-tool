@@ -9,6 +9,7 @@ from email.header import decode_header
 import re
 from datetime import datetime
 from flask import Flask, request, jsonify, session
+from flask_cors import CORS
 import json
 import logging
 from urllib.parse import urlparse
@@ -18,6 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app)
 app.secret_key = 'yahoo-mail-cleanup-secret-key-change-in-production'
 
 # Global connection state
