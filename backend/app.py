@@ -255,8 +255,8 @@ def search_emails():
         if not search_criteria:
             search_criteria = ['ALL']
 
-        # Execute search
-        status, messages = mail_connection.search(None, *search_criteria)
+        # Execute search with charset=None for Yahoo compatibility
+        status, messages = mail_connection.search(None, charset=None, query=' '.join(search_criteria))
 
         if status != 'OK':
             return jsonify({'error': 'Search failed'}), 500
@@ -632,29 +632,29 @@ def search_cleanup():
             '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
         }
 
-        # IMAP search combinations - simplified without date filters first
-        # Will add back date filters if these basic searches work
+        # IMAP search combinations - simplified without OR clauses for Yahoo compatibility
+        # Yahoo IMAP may not support OR in searches, so using single keywords
         cleanup_searches = {
-            'verification_codes': 'SUBJECT "verification" OR SUBJECT "code" OR SUBJECT "OTP"',
-            'password_reset': 'SUBJECT "password" OR SUBJECT "reset"',
-            'shipping': 'SUBJECT "ship" OR SUBJECT "tracking" OR SUBJECT "deliver"',
-            'receipts': 'SUBJECT "receipt" OR SUBJECT "order confirmation"',
-            'cart': 'SUBJECT "cart" OR SUBJECT "abandon" OR SUBJECT "purchase"',
-            'newsletters': 'SUBJECT "newsletter" OR SUBJECT "digest" OR SUBJECT "update"',
-            'promotions': 'SUBJECT "sale" OR SUBJECT "offer" OR SUBJECT "deal"',
-            'expired_trials': 'SUBJECT "trial" OR SUBJECT "expired" OR SUBJECT "upgrade"',
-            'social': 'SUBJECT "follower" OR SUBJECT "liked" OR SUBJECT "notification"',
-            'comment_alerts': 'SUBJECT "comment" OR SUBJECT "replied" OR SUBJECT "mention"',
+            'verification_codes': 'SUBJECT "verification"',
+            'password_reset': 'SUBJECT "password"',
+            'shipping': 'SUBJECT "ship"',
+            'receipts': 'SUBJECT "receipt"',
+            'cart': 'SUBJECT "cart"',
+            'newsletters': 'SUBJECT "newsletter"',
+            'promotions': 'SUBJECT "sale"',
+            'expired_trials': 'SUBJECT "trial"',
+            'social': 'SUBJECT "follower"',
+            'comment_alerts': 'SUBJECT "comment"',
             'old_unread': 'UNSEEN',
-            'old_read': 'SEEN',  # Note: These will find all emails - add date filters manually if needed
-            'auto_confirmations': 'SUBJECT "confirm" OR SUBJECT "verify"',
+            'old_read': 'SEEN',  # Previously read emails
+            'auto_confirmations': 'SUBJECT "confirm"',
             'attachments_old': 'ALL',
-            'noreply': 'FROM "noreply" OR FROM "no-reply" OR FROM "donotreply"',
-            'security': 'SUBJECT "security" OR SUBJECT "alert"',
-            'travel': 'SUBJECT "reservation" OR SUBJECT "itinerary"',
-            'jobs': 'SUBJECT "job" OR SUBJECT "career" OR SUBJECT "hiring"',
-            'sales': 'SUBJECT "sales" OR SUBJECT "schedule a call"',
-            'spam': 'SUBJECT "winner" OR SUBJECT "congratulations"',
+            'noreply': 'FROM "noreply"',
+            'security': 'SUBJECT "security"',
+            'travel': 'SUBJECT "reservation"',
+            'jobs': 'SUBJECT "job"',
+            'sales': 'SUBJECT "sale"',
+            'spam': 'SUBJECT "winner"',
         }
 
         if cleanup_type not in cleanup_searches:
@@ -662,16 +662,21 @@ def search_cleanup():
 
         search_criteria = cleanup_searches[cleanup_type]
 
-        status, messages = mail_connection.search(None, search_criteria)
+        # Log the search for debugging
+        logger.info(f"Cleanup search for '{cleanup_type}': {search_criteria}")
+
+        # Try using charset=None for Yahoo compatibility
+        status, messages = mail_connection.search(None, charset=None, query=search_criteria)
 
         if status != 'OK':
+            logger.warning(f"Search failed for {cleanup_type}")
             return jsonify({'emails': [], 'total': 0, 'type': cleanup_type})
 
         email_ids = messages[0].split() if messages[0] else []
 
-        # Note: old_unread and old_read search ALL emails - need to fetch in reverse to get oldest first
+        # old_unread and old_read search ALL emails - keep in original order
         if cleanup_type in ['old_unread', 'old_read']:
-            pass  # Keep in original order (oldest first)
+            pass  # Keep UNSEEN/SEEN order
         else:
             email_ids = list(reversed(email_ids))  # Most recent first for keyword searches
 
@@ -744,27 +749,29 @@ def search_cleanup_count():
 
         counts = {}
         searches = [
-            ('verification_codes', 'SUBJECT "verification" OR SUBJECT "code" OR SUBJECT "OTP"'),
-            ('password_reset', 'SUBJECT "password" OR SUBJECT "reset"'),
-            ('shipping', 'SUBJECT "ship" OR SUBJECT "tracking" OR SUBJECT "deliver"'),
-            ('receipts', 'SUBJECT "receipt" OR SUBJECT "order confirmation"'),
-            ('newsletters', 'SUBJECT "newsletter" OR SUBJECT "digest" OR SUBJECT "update"'),
-            ('promotions', 'SUBJECT "sale" OR SUBJECT "offer" OR SUBJECT "deal"'),
-            ('expired_trials', 'SUBJECT "trial" OR SUBJECT "expired" OR SUBJECT "upgrade"'),
-            ('social', 'SUBJECT "follower" OR SUBJECT "liked" OR SUBJECT "notification"'),
+            ('verification_codes', 'SUBJECT "verification"'),
+            ('password_reset', 'SUBJECT "password"'),
+            ('shipping', 'SUBJECT "ship"'),
+            ('receipts', 'SUBJECT "receipt"'),
+            ('newsletters', 'SUBJECT "newsletter"'),
+            ('promotions', 'SUBJECT "sale"'),
+            ('expired_trials', 'SUBJECT "trial"'),
+            ('social', 'SUBJECT "follower"'),
             ('old_unread', 'UNSEEN'),
-            ('old_read', 'SEEN'),
-            ('auto_confirmations', 'SUBJECT "confirm" OR SUBJECT "verify"'),
+            ('old_read', 'SEEN'),  # Previously read emails
+            ('auto_confirmations', 'SUBJECT "confirm"'),
         ]
 
         for name, criteria in searches:
             try:
-                status, messages = mail_connection.search(None, criteria)
+                logger.info(f"Count search '{name}': {criteria}")
+                status, messages = mail_connection.search(None, charset=None, query=criteria)
                 if status == 'OK' and messages[0]:
                     counts[name] = len(messages[0].split())
                 else:
                     counts[name] = 0
-            except:
+            except Exception as e:
+                logger.warning(f"Count search error for {name}: {e}")
                 counts[name] = 0
 
         return jsonify({'counts': counts})
