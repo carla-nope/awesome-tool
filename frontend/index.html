@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carla's Awesome Yahoo Tool that Gus is allowed to use.</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: #f1f1f1; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #a1a1a1; }
+        .tab-active { border-bottom: 2px solid #3B82F6; color: #3B82F6; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md mx-4">
+            <div class="text-center mb-6">
+                <svg class="w-16 h-16 mx-auto mb-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                <h1 class="text-2xl font-bold text-gray-900">Carla's Awesome Yahoo Tool that Gus is allowed to use.</h1>
+                <p class="text-gray-500 mt-2">Connect your Yahoo account to get started</p>
+            </div>
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Yahoo Email</label>
+                    <input type="email" id="emailInput" required placeholder="yourname@yahoo.com"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">App Password</label>
+                    <input type="password" id="passwordInput" required placeholder="xxxxxxxxxxxxxxxx"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                    <p class="text-xs text-gray-500 mt-1">
+                        Need an app password?
+                        <a href="https://login.yahoo.com/myaccount/security/comparison" target="_blank" class="text-blue-500 hover:underline">Create one here</a>
+                    </p>
+                </div>
+                <div id="loginError" class="text-red-500 text-sm hidden"></div>
+                <button type="submit" id="loginBtn"
+                    class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition disabled:opacity-50">
+                    Connect to Yahoo Mail
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div id="mainApp" class="hidden">
+        <!-- Header -->
+        <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+            <div class="flex items-center justify-between px-6 py-3">
+                <div class="flex items-center gap-4">
+                    <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    <h1 class="text-xl font-bold text-gray-900">Carla's Awesome Yahoo Tool</h1>
+                    <span id="connectedEmail" class="text-sm text-gray-500"></span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button id="refreshBtn" class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition" title="Refresh">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                    </button>
+                    <button id="disconnectBtn" class="px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition">
+                        Disconnect
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard Stats -->
+        <div class="bg-white border-b border-gray-200">
+            <div class="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                    <p class="text-sm text-blue-600 font-medium">Total Emails</p>
+                    <p id="statTotal" class="text-2xl font-bold text-blue-700">-</p>
+                </div>
+                <div class="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4">
+                    <p class="text-sm text-amber-600 font-medium">Unread</p>
+                    <p id="statUnread" class="text-2xl font-bold text-amber-700">-</p>
+                </div>
+                <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4">
+                    <p class="text-sm text-green-600 font-medium">With Unsubscribe</p>
+                    <p id="statUnsubscribe" class="text-2xl font-bold text-green-700">-</p>
+                </div>
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4">
+                    <p class="text-sm text-purple-600 font-medium">Top Category</p>
+                    <p id="statCategory" class="text-2xl font-bold text-purple-700">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="bg-white border-b border-gray-200">
+            <div class="px-6 flex gap-6">
+                <button id="tabBrowse" class="py-3 px-1 text-sm font-medium text-blue-600 border-b-2 border-blue-500">
+                    Browse & Delete
+                </button>
+                <button id="tabTriage" class="py-3 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent">
+                    AI Triage Mode
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex h-[calc(100vh-240px)]">
+            <!-- ===== BROWSE MODE ===== -->
+            <div id="browseMode" class="flex-1 flex">
+                <!-- Sidebar -->
+                <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+                    <!-- Search -->
+                    <div class="p-4 border-b border-gray-200">
+                        <div class="relative">
+                            <input type="text" id="searchInput" placeholder="Search emails..."
+                                class="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm">
+                            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                        </div>
+                        <button id="advancedSearchBtn" class="mt-2 text-sm text-blue-500 hover:text-blue-600">
+                            Advanced Search
+                        </button>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="p-4 border-b border-gray-200 space-y-2">
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Quick Filters</p>
+                        <button data-filter="all" class="filter-btn active w-full text-left px-3 py-2 text-sm rounded-lg bg-blue-50 text-blue-700">
+                            All Emails
+                        </button>
+                        <button data-filter="unread" class="filter-btn w-full text-left px-3 py-2 text-sm rounded-lg text-gray-600 hover:bg-gray-50">
+                            Unread
+                        </button>
+                        <button data-filter="unsubscribe" class="filter-btn w-full text-left px-3 py-2 text-sm rounded-lg text-gray-600 hover:bg-gray-50">
+                            Have Unsubscribe Link
+                        </button>
+                        <button data-filter="marketing" class="filter-btn w-full text-left px-3 py-2 text-sm rounded-lg text-gray-600 hover:bg-gray-50">
+                            Marketing/Promotional
+                        </button>
+                    </div>
+
+                    <!-- Category Stats -->
+                    <div class="p-4 flex-1 overflow-y-auto scrollbar-thin">
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Categories</p>
+                        <div id="categoryList" class="space-y-2"></div>
+                    </div>
+                </aside>
+
+                <!-- Email List -->
+                <div class="flex-1 flex flex-col">
+                    <!-- Bulk Actions Bar -->
+                    <div id="bulkActionsBar" class="hidden bg-blue-50 border-b border-blue-100 px-4 py-2 flex items-center justify-between">
+                        <span id="selectedCount" class="text-sm text-blue-700">0 selected</span>
+                        <div class="flex items-center gap-2">
+                            <button id="bulkUnsubscribeBtn" class="px-3 py-1 text-sm text-blue-700 hover:bg-blue-100 rounded-lg transition">
+                                Unsubscribe & Delete
+                            </button>
+                            <button id="bulkDeleteBtn" class="px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded-lg transition">
+                                Delete Selected
+                            </button>
+                            <button id="clearSelectionBtn" class="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Email List Content -->
+                    <div id="emailListContainer" class="flex-1 overflow-y-auto scrollbar-thin">
+                        <div id="emailList" class="divide-y divide-gray-100"></div>
+                        <div id="loadingState" class="hidden flex items-center justify-center h-32">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                        </div>
+                        <div id="emptyState" class="hidden flex flex-col items-center justify-center h-64 text-gray-400">
+                            <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                            </svg>
+                            <p class="text-lg font-medium">No emails found</p>
+                            <p class="text-sm">Try adjusting your search or filters</p>
+                        </div>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div id="pagination" class="bg-white border-t border-gray-200 px-4 py-3 flex items-center justify-between">
+                        <button id="prevPageBtn" class="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                            Previous
+                        </button>
+                        <span id="pageInfo" class="text-sm text-gray-500">Page 1 of 1</span>
+                        <button id="nextPageBtn" class="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                            Next
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Email Detail Panel -->
+                <div id="emailDetailPanel" class="w-96 bg-white border-l border-gray-200 flex flex-col hidden">
+                    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                        <h2 class="font-semibold text-gray-900">Email Details</h2>
+                        <button id="closeDetailBtn" class="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="emailDetailContent" class="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4"></div>
+                    <div class="p-4 border-t border-gray-200 space-y-2">
+                        <button id="deleteEmailBtn" class="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition">
+                            Delete Email
+                        </button>
+                        <button id="unsubscribeEmailBtn" class="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition">
+                            Unsubscribe & Delete All from Sender
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== TRIAGE MODE ===== -->
+            <div id="triageMode" class="hidden flex-1 flex">
+                <!-- Triage Instructions Panel -->
+                <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
+                    <div class="p-4 border-b border-gray-200">
+                        <h2 class="font-semibold text-gray-900 mb-2">AI Triage Mode</h2>
+                        <p class="text-sm text-gray-500">
+                            Get batches of emails, paste to AI for analysis, then execute approved actions.
+                        </p>
+                    </div>
+
+                    <div class="p-4 space-y-4 flex-1 overflow-y-auto scrollbar-thin">
+                        <div class="bg-blue-50 rounded-lg p-4">
+                            <h3 class="font-medium text-blue-900 mb-2">How it works:</h3>
+                            <ol class="text-sm text-blue-800 space-y-2">
+                                <li class="flex gap-2">
+                                    <span class="font-bold">1.</span>
+                                    <span>Click "Extract Batch" to get emails formatted for AI</span>
+                                </li>
+                                <li class="flex gap-2">
+                                    <span class="font-bold">2.</span>
+                                    <span>Copy the formatted text and paste to Chat/Minimax</span>
+                                </li>
+                                <li class="flex gap-2">
+                                    <span class="font-bold">3.</span>
+                                    <span>Review the AI's analysis table</span>
+                                </li>
+                                <li class="flex gap-2">
+                                    <span class="font-bold">4.</span>
+                                    <span>Type "Approved" and copy the JSON command block</span>
+                                </li>
+                                <li class="flex gap-2">
+                                    <span class="font-bold">5.</span>
+                                    <span>Paste JSON below and click "Execute Commands"</span>
+                                </li>
+                            </ol>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Batch Start</label>
+                                <input type="number" id="batchStart" value="0" min="0"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Batch Size</label>
+                                <input type="number" id="batchSize" value="20" min="5" max="50"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            </div>
+                            <button id="extractBatchBtn" class="w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition">
+                                Extract Batch
+                            </button>
+                        </div>
+
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <h3 class="font-medium text-gray-700 mb-2">System Prompt</h3>
+                            <p class="text-xs text-gray-500 mb-2">Use this in your AI chat:</p>
+                            <pre id="systemPromptPreview" class="text-xs text-gray-600 bg-white p-2 rounded border max-h-48 overflow-auto scrollbar-thin whitespace-pre-wrap">Click "Extract Batch" to load the system prompt...</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Triage Content Area -->
+                <div class="flex-1 flex flex-col bg-gray-50">
+                    <!-- Extracted Text -->
+                    <div class="flex-1 p-4">
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
+                            <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                                <h3 class="font-semibold text-gray-900">Extracted Email Batch</h3>
+                                <div class="flex gap-2">
+                                    <button id="copyBatchBtn" class="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                                        Copy to Clipboard
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="batchText" class="flex-1 p-4 overflow-auto scrollbar-thin">
+                                <p class="text-gray-400 text-center mt-8">Click "Extract Batch" to load emails for AI analysis...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- JSON Commands Input -->
+                    <div class="p-4 pt-0">
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                            <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                                <h3 class="font-semibold text-gray-900">JSON Commands (from AI)</h3>
+                            </div>
+                            <div class="p-4">
+                                <textarea id="commandsInput" rows="8" placeholder='Paste JSON commands here after AI approval...
+
+Example:
+[
+  {"id": "12345", "action": "delete"},
+  {"id": "12346", "action": "move", "destination": "Newsletters"},
+  {"id": "12347", "action": "unsubscribe"}
+]'
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono resize-none"></textarea>
+                                <div id="executionResult" class="mt-3 hidden">
+                                    <div class="p-3 rounded-lg"></div>
+                                </div>
+                                <button id="executeCommandsBtn" class="mt-3 w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50">
+                                    Execute Approved Commands
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Search Modal -->
+    <div id="advancedSearchModal" class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg mx-4">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Advanced Search</h2>
+            <form id="advancedSearchForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">From (Sender)</label>
+                    <input type="text" id="searchSender" placeholder="sender@example.com" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Subject Contains</label>
+                    <input type="text" id="searchSubject" placeholder="Keyword in subject" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Date From</label>
+                    <input type="date" id="searchDateFrom" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Date To</label>
+                    <input type="date" id="searchDateTo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Text Search</label>
+                    <input type="text" id="searchQuery" placeholder="Search in email body" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" id="cancelSearchBtn" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                        Search
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <h2 id="confirmTitle" class="text-xl font-bold text-gray-900 mb-2">Confirm Action</h2>
+            <p id="confirmMessage" class="text-gray-600 mb-6">Are you sure you want to proceed?</p>
+            <div class="flex gap-3">
+                <button id="confirmCancelBtn" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button id="confirmProceedBtn" class="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+    <script>
+        // State Management
+        const state = {
+            connected: false,
+            currentPage: 1,
+            perPage: 20,
+            totalPages: 1,
+            totalEmails: 0,
+            selectedEmails: new Set(),
+            currentFilter: 'all',
+            currentSearch: {},
+            currentEmail: null,
+            currentMode: 'browse',
+            currentBatch: null
+        };
+
+        // API Helper
+        const api = {
+            async connect(email, password) {
+                const res = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                return res.json();
+            },
+            async status() {
+                const res = await fetch('/api/status');
+                return res.json();
+            },
+            async disconnect() {
+                const res = await fetch('/api/disconnect', { method: 'POST' });
+                return res.json();
+            },
+            async search(params) {
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...params, page: state.currentPage, per_page: state.perPage })
+                });
+                return res.json();
+            },
+            async getEmail(id) {
+                const res = await fetch(`/api/email/${id}`);
+                return res.json();
+            },
+            async deleteEmails(ids, permanent = false) {
+                const res = await fetch('/api/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email_ids: ids, permanent })
+                });
+                return res.json();
+            },
+            async unsubscribe(sender) {
+                const res = await fetch('/api/unsubscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender })
+                });
+                return res.json();
+            },
+            async getStats() {
+                const res = await fetch('/api/stats');
+                return res.json();
+            },
+            async getTriageBatch(start, limit) {
+                const res = await fetch(`/api/triage/batch?start=${start}&limit=${limit}`);
+                return res.json();
+            },
+            async executeTriageCommands(commands) {
+                const res = await fetch('/api/triage/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ commands })
+                });
+                return res.json();
+            },
+            async findUnsubscribeUrl(emailId) {
+                const res = await fetch('/api/unsubscribe/find-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email_id: emailId })
+                });
+                return res.json();
+            },
+            async visitUnsubscribeUrl(url, emailId) {
+                const res = await fetch('/api/unsubscribe/visit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, email_id: emailId })
+                });
+                return res.json();
+            },
+            async fullUnsubscribe(sender, emailId, unsubscribeUrl) {
+                const res = await fetch('/api/unsubscribe/full', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender, email_id: emailId, unsubscribe_url: unsubscribeUrl })
+                });
+                return res.json();
+            }
+        };
+
+        // Toast Notification
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 transform transition-all duration-300 translate-x-full`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button onclick="this.parentElement.remove()" class="ml-2 hover:opacity-75">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-x-full'), 10);
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Confirm Modal
+        let confirmCallback = null;
+        function showConfirm(title, message, callback) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            document.getElementById('confirmModal').classList.remove('hidden');
+            confirmCallback = callback;
+        }
+
+        document.getElementById('confirmCancelBtn').onclick = () => {
+            document.getElementById('confirmModal').classList.add('hidden');
+            confirmCallback = null;
+        };
+        document.getElementById('confirmProceedBtn').onclick = () => {
+            document.getElementById('confirmModal').classList.add('hidden');
+            if (confirmCallback) confirmCallback();
+            confirmCallback = null;
+        };
+
+        // Mode Switching
+        document.getElementById('tabBrowse').onclick = () => switchMode('browse');
+        document.getElementById('tabTriage').onclick = () => switchMode('triage');
+
+        function switchMode(mode) {
+            state.currentMode = mode;
+            const browseTab = document.getElementById('tabBrowse');
+            const triageTab = document.getElementById('tabTriage');
+            const browseMode = document.getElementById('browseMode');
+            const triageMode = document.getElementById('triageMode');
+
+            if (mode === 'browse') {
+                browseTab.className = 'py-3 px-1 text-sm font-medium text-blue-600 border-b-2 border-blue-500';
+                triageTab.className = 'py-3 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent';
+                browseMode.classList.remove('hidden');
+                browseMode.classList.add('flex');
+                triageMode.classList.add('hidden');
+                triageMode.classList.remove('flex');
+            } else {
+                triageTab.className = 'py-3 px-1 text-sm font-medium text-blue-600 border-b-2 border-blue-500';
+                browseTab.className = 'py-3 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent';
+                triageMode.classList.remove('hidden');
+                triageMode.classList.add('flex');
+                browseMode.classList.add('hidden');
+                browseMode.classList.remove('flex');
+            }
+        }
+
+        // Render Email List
+        function renderEmails(emails) {
+            const container = document.getElementById('emailList');
+            const loading = document.getElementById('loadingState');
+            const empty = document.getElementById('emptyState');
+
+            loading.classList.add('hidden');
+
+            if (emails.length === 0) {
+                container.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+            container.innerHTML = emails.map(email => `
+                <div class="email-item p-4 hover:bg-gray-50 cursor-pointer transition ${state.selectedEmails.has(email.id) ? 'bg-blue-50' : ''}"
+                     data-id="${email.id}" onclick="viewEmail('${email.id}')">
+                    <div class="flex items-start gap-3">
+                        <input type="checkbox" class="email-checkbox mt-1 w-4 h-4 rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                               ${state.selectedEmails.has(email.id) ? 'checked' : ''}
+                               onclick="event.stopPropagation(); toggleEmailSelection('${email.id}')">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-medium text-gray-900 truncate">${escapeHtml(email.sender.split('<')[0].trim()) || 'Unknown Sender'}</span>
+                                ${email.has_unsubscribe ? '<span class="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded">Unsubscribe</span>' : ''}
+                            </div>
+                            <p class="text-sm text-gray-700 truncate">${escapeHtml(email.subject) || '(No Subject)'}</p>
+                            <p class="text-xs text-gray-500 mt-1 truncate">${escapeHtml(email.snippet)}</p>
+                            <p class="text-xs text-gray-400 mt-1">${formatDate(email.date)}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateStr) {
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch {
+                return dateStr;
+            }
+        }
+
+        // Selection Management
+        function toggleEmailSelection(id) {
+            if (state.selectedEmails.has(id)) {
+                state.selectedEmails.delete(id);
+            } else {
+                state.selectedEmails.add(id);
+            }
+            updateBulkActionsBar();
+            renderEmails(state.currentEmails || []);
+        }
+
+        function updateBulkActionsBar() {
+            const bar = document.getElementById('bulkActionsBar');
+            const count = document.getElementById('selectedCount');
+            const count_val = state.selectedEmails.size;
+
+            if (count_val > 0) {
+                bar.classList.remove('hidden');
+                count.textContent = `${count_val} selected`;
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        // View Email Detail
+        async function viewEmail(id) {
+            const panel = document.getElementById('emailDetailPanel');
+            const content = document.getElementById('emailDetailContent');
+
+            content.innerHTML = '<div class="flex items-center justify-center h-32"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div></div>';
+            panel.classList.remove('hidden');
+
+            try {
+                const email = await api.getEmail(id);
+                state.currentEmail = email;
+
+                content.innerHTML = `
+                    <div>
+                        <h3 class="font-semibold text-gray-900 mb-2">${escapeHtml(email.subject) || '(No Subject)'}</h3>
+                        <div class="space-y-1 text-sm">
+                            <p><span class="text-gray-500">From:</span> ${escapeHtml(email.sender)}</p>
+                            <p><span class="text-gray-500">To:</span> ${escapeHtml(email.to)}</p>
+                            <p><span class="text-gray-500">Date:</span> ${formatDate(email.date)}</p>
+                            <p><span class="text-gray-500">Category:</span> <span class="capitalize">${email.category}</span></p>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-200 pt-4">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Message</h4>
+                        <div class="text-sm text-gray-600 whitespace-pre-wrap break-words max-h-64 overflow-y-auto scrollbar-thin bg-gray-50 p-3 rounded">
+                            ${escapeHtml(email.body) || '(No content)'}
+                        </div>
+                    </div>
+                    ${email.unsubscribe_links && email.unsubscribe_links.length > 0 ? `
+                    <div class="border-t border-gray-200 pt-4">
+                        <h4 class="text-sm font-medium text-red-600 mb-2">Unsubscribe Links</h4>
+                        <div class="space-y-2">
+                            ${email.unsubscribe_links.map(link => `
+                                <div class="flex items-center gap-2">
+                                    <a href="${escapeHtml(link)}" target="_blank" class="block text-sm text-blue-500 hover:underline break-all flex-1">
+                                        ${escapeHtml(link)}
+                                    </a>
+                                    <button onclick="api.visitUnsubscribeUrl('${escapeHtml(link)}', '${id}').then(r => showToast('Unsubscribe attempted: ' + (r.result?.success ? 'Success' : 'Check result'), r.result?.success ? 'success' : 'info'))" class="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded">
+                                        Visit
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button onclick="performTrueUnsubscribe('${escapeHtml(email.sender)}', '${id}')" class="mt-3 w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition">
+                            Full Unsubscribe (Visit URL + Delete All)
+                        </button>
+                    </div>
+                    ` : '<div class="border-t border-gray-200 pt-4"><button onclick="performTrueUnsubscribe(\'' + escapeHtml(email.sender) + '\', \'' + id + '\')" class="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition">Unsubscribe & Delete All from Sender</button></div>'}
+                    ${email.urls && email.urls.length > 0 ? `
+                    <div class="border-t border-gray-200 pt-4">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Links in Email</h4>
+                        <div class="space-y-1 max-h-32 overflow-y-auto scrollbar-thin">
+                            ${email.urls.slice(0, 20).map(link => `
+                                <a href="${escapeHtml(link)}" target="_blank" class="block text-xs text-gray-500 hover:text-gray-700 truncate">
+                                    ${escapeHtml(link)}
+                                </a>
+                            `).join('')}
+                            ${email.urls.length > 20 ? `<p class="text-xs text-gray-400">+${email.urls.length - 20} more links</p>` : ''}
+                        </div>
+                    </div>
+                    ` : ''}
+                `;
+            } catch (err) {
+                content.innerHTML = '<p class="text-red-500">Failed to load email</p>';
+            }
+        }
+
+        // Load Emails
+        async function loadEmails() {
+            const loading = document.getElementById('loadingState');
+            loading.classList.remove('hidden');
+
+            try {
+                let result;
+                if (Object.keys(state.currentSearch).length > 0) {
+                    result = await api.search(state.currentSearch);
+                } else if (state.currentFilter === 'unread') {
+                    result = await api.search({ query: '', unread_only: true });
+                } else if (state.currentFilter === 'unsubscribe') {
+                    result = await api.search({ has_unsubscribe: true });
+                } else if (state.currentFilter === 'marketing') {
+                    result = await api.search({ category: 'marketing' });
+                } else {
+                    result = await api.search({});
+                }
+
+                state.currentEmails = result.emails || [];
+                state.totalEmails = result.total || 0;
+                state.totalPages = result.pages || 1;
+
+                renderEmails(state.currentEmails);
+                updatePagination();
+            } catch (err) {
+                showToast('Failed to load emails', 'error');
+            }
+        }
+
+        // Load Stats
+        async function loadStats() {
+            try {
+                const stats = await api.getStats();
+                document.getElementById('statTotal').textContent = stats.total_emails?.toLocaleString() || '0';
+                document.getElementById('statUnread').textContent = stats.unread_count?.toLocaleString() || '0';
+
+                const unsubscribeCount = Object.values(stats.categories || {}).reduce((a, b) => a + b, 0);
+                document.getElementById('statUnsubscribe').textContent = unsubscribeCount;
+
+                const topCat = Object.entries(stats.categories || {}).sort((a, b) => b[1] - a[1])[0];
+                document.getElementById('statCategory').textContent = topCat ? topCat[0].charAt(0).toUpperCase() + topCat[0].slice(1) : '-';
+
+                const categoryList = document.getElementById('categoryList');
+                categoryList.innerHTML = Object.entries(stats.categories).map(([cat, count]) => `
+                    <button class="w-full text-left px-3 py-2 text-sm rounded-lg text-gray-600 hover:bg-gray-50 flex justify-between">
+                        <span class="capitalize">${cat}</span>
+                        <span class="text-gray-400">${count}</span>
+                    </button>
+                `).join('');
+            } catch (err) {
+                console.error('Failed to load stats:', err);
+            }
+        }
+
+        function updatePagination() {
+            document.getElementById('pageInfo').textContent = `Page ${state.currentPage} of ${state.totalPages}`;
+            document.getElementById('prevPageBtn').disabled = state.currentPage <= 1;
+            document.getElementById('nextPageBtn').disabled = state.currentPage >= state.totalPages;
+        }
+
+        // ===== TRIAGE FUNCTIONS =====
+        async function extractBatch() {
+            const start = parseInt(document.getElementById('batchStart').value) || 0;
+            const limit = parseInt(document.getElementById('batchSize').value) || 20;
+
+            document.getElementById('batchText').innerHTML = '<div class="flex items-center justify-center h-32"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div></div>';
+
+            try {
+                const result = await api.getTriageBatch(start, limit);
+                if (result.success) {
+                    state.currentBatch = result.batch;
+
+                    // Display formatted text
+                    document.getElementById('batchText').innerHTML = `<pre class="text-sm text-gray-700 whitespace-pre-wrap font-mono bg-gray-50 p-4 rounded-lg">${escapeHtml(result.formatted_text)}</pre>`;
+
+                    // Show system prompt
+                    document.getElementById('systemPromptPreview').textContent = result.system_prompt;
+
+                    showToast(`Loaded batch: ${result.batch.emails.length} emails`, 'success');
+                } else {
+                    showToast(result.error || 'Failed to extract batch', 'error');
+                }
+            } catch (err) {
+                showToast('Failed to extract batch', 'error');
+            }
+        }
+
+        async function executeCommands() {
+            const input = document.getElementById('commandsInput').value.trim();
+            if (!input) {
+                showToast('Please paste JSON commands first', 'error');
+                return;
+            }
+
+            let commands;
+            try {
+                commands = JSON.parse(input);
+            } catch (e) {
+                showToast('Invalid JSON format', 'error');
+                return;
+            }
+
+            if (!Array.isArray(commands)) {
+                showToast('JSON must be an array of commands', 'error');
+                return;
+            }
+
+            showConfirm('Execute Commands', `Execute ${commands.length} commands? This action cannot be undone.`, async () => {
+                const executeBtn = document.getElementById('executeCommandsBtn');
+                const resultDiv = document.getElementById('executionResult');
+                const resultContent = resultDiv.querySelector('div');
+
+                executeBtn.disabled = true;
+                executeBtn.textContent = 'Executing...';
+                resultDiv.classList.add('hidden');
+
+                try {
+                    const result = await api.executeTriageCommands(commands);
+
+                    resultDiv.classList.remove('hidden');
+                    if (result.error) {
+                        resultContent.className = 'p-3 rounded-lg bg-red-50 text-red-700';
+                        resultContent.innerHTML = `<p class="font-medium">Error: ${result.error}</p>`;
+                        showToast('Execution failed', 'error');
+                    } else {
+                        resultContent.className = 'p-3 rounded-lg bg-green-50 text-green-700';
+                        resultContent.innerHTML = `
+                            <p class="font-medium">Execution Complete</p>
+                            <p class="text-sm mt-1">Successful: ${result.successful} / ${result.total}</p>
+                            ${result.results && result.results.length > 0 ? `
+                            <div class="mt-2 text-xs space-y-1">
+                                ${result.results.slice(0, 5).map(r => `
+                                    <p class="${r.error ? 'text-red-600' : 'text-green-600'}">
+                                        ${r.action}: ${r.id} - ${r.error || r.detail || 'OK'}
+                                    </p>
+                                `).join('')}
+                                ${result.results.length > 5 ? `<p class="text-gray-500">...and ${result.results.length - 5} more</p>` : ''}
+                            </div>
+                            ` : ''}
+                        `;
+                        showToast(`Executed ${result.successful} commands`, 'success');
+                    }
+                } catch (err) {
+                    resultDiv.classList.remove('hidden');
+                    resultContent.className = 'p-3 rounded-lg bg-red-50 text-red-700';
+                    resultContent.innerHTML = `<p class="font-medium">Execution failed: ${err.message}</p>`;
+                    showToast('Execution failed', 'error');
+                }
+
+                executeBtn.disabled = false;
+                executeBtn.textContent = 'Execute Approved Commands';
+            });
+        }
+
+        function copyBatchToClipboard() {
+            const text = state.currentBatch ? state.currentBatch.formatted_text || document.getElementById('batchText').textContent : '';
+            if (!text) {
+                showToast('No batch to copy', 'error');
+                return;
+            }
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copied to clipboard!', 'success');
+            }).catch(() => {
+                showToast('Failed to copy', 'error');
+            });
+        }
+
+        // True Unsubscribe function
+        async function performTrueUnsubscribe(sender, emailId) {
+            showConfirm('Full Unsubscribe', `This will:\n1. Visit the unsubscribe URL from this email\n2. Delete ALL emails from ${sender.split('<')[0].trim()}\n\nContinue?`, async () => {
+                try {
+                    const result = await api.fullUnsubscribe(sender, emailId);
+                    if (result.success) {
+                        const r = result.result;
+                        let message = `Emails deleted: ${r.emails_deleted}`;
+                        if (r.unsubscribe_attempted) {
+                            message += `\nUnsubscribe URL: ${r.unsubscribe_success ? 'SUCCESS' : 'visited (check manually)'}`;
+                        }
+                        showToast(message, r.unsubscribe_success ? 'success' : 'info');
+                        document.getElementById('emailDetailPanel').classList.add('hidden');
+                        loadEmails();
+                        loadStats();
+                    } else {
+                        showToast(result.error || 'Unsubscribe failed', 'error');
+                    }
+                } catch (err) {
+                    showToast('Unsubscribe failed', 'error');
+                }
+            });
+        }
+
+        // Event Handlers
+        document.getElementById('loginForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const error = document.getElementById('loginError');
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+
+            btn.disabled = true;
+            btn.textContent = 'Connecting...';
+            error.classList.add('hidden');
+
+            try {
+                const result = await api.connect(email, password);
+                if (result.success) {
+                    state.connected = true;
+                    document.getElementById('loginModal').classList.add('hidden');
+                    document.getElementById('mainApp').classList.remove('hidden');
+                    document.getElementById('connectedEmail').textContent = result.email;
+                    showToast('Connected successfully!', 'success');
+                    loadEmails();
+                    loadStats();
+                } else {
+                    error.textContent = result.error;
+                    error.classList.remove('hidden');
+                }
+            } catch (err) {
+                error.textContent = 'Connection failed. Please try again.';
+                error.classList.remove('hidden');
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Connect to Yahoo Mail';
+        };
+
+        document.getElementById('disconnectBtn').onclick = async () => {
+            showConfirm('Disconnect', 'Are you sure you want to disconnect?', async () => {
+                await api.disconnect();
+                state.connected = false;
+                document.getElementById('mainApp').classList.add('hidden');
+                document.getElementById('loginModal').classList.remove('hidden');
+                document.getElementById('emailInput').value = '';
+                document.getElementById('passwordInput').value = '';
+            });
+        };
+
+        document.getElementById('refreshBtn').onclick = () => {
+            loadEmails();
+            loadStats();
+            showToast('Refreshing...', 'info');
+        };
+
+        document.getElementById('advancedSearchBtn').onclick = () => {
+            document.getElementById('advancedSearchModal').classList.remove('hidden');
+        };
+
+        document.getElementById('cancelSearchBtn').onclick = () => {
+            document.getElementById('advancedSearchModal').classList.add('hidden');
+        };
+
+        document.getElementById('advancedSearchForm').onsubmit = (e) => {
+            e.preventDefault();
+            state.currentSearch = {
+                sender: document.getElementById('searchSender').value,
+                subject: document.getElementById('searchSubject').value,
+                date_from: document.getElementById('searchDateFrom').value,
+                date_to: document.getElementById('searchDateTo').value,
+                query: document.getElementById('searchQuery').value
+            };
+            state.currentPage = 1;
+            document.getElementById('advancedSearchModal').classList.add('hidden');
+            loadEmails();
+            showToast('Searching...', 'info');
+        };
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.filter-btn').forEach(b => {
+                    b.classList.remove('active', 'bg-blue-50', 'text-blue-700');
+                    b.classList.add('text-gray-600', 'hover:bg-gray-50');
+                });
+                btn.classList.add('active', 'bg-blue-50', 'text-blue-700');
+                btn.classList.remove('text-gray-600', 'hover:bg-gray-50');
+                state.currentFilter = btn.dataset.filter;
+                state.currentSearch = {};
+                state.currentPage = 1;
+                loadEmails();
+            };
+        });
+
+        document.getElementById('prevPageBtn').onclick = () => {
+            if (state.currentPage > 1) {
+                state.currentPage--;
+                loadEmails();
+            }
+        };
+
+        document.getElementById('nextPageBtn').onclick = () => {
+            if (state.currentPage < state.totalPages) {
+                state.currentPage++;
+                loadEmails();
+            }
+        };
+
+        document.getElementById('closeDetailBtn').onclick = () => {
+            document.getElementById('emailDetailPanel').classList.add('hidden');
+            state.currentEmail = null;
+        };
+
+        document.getElementById('clearSelectionBtn').onclick = () => {
+            state.selectedEmails.clear();
+            updateBulkActionsBar();
+            renderEmails(state.currentEmails || []);
+        };
+
+        document.getElementById('bulkDeleteBtn').onclick = () => {
+            showConfirm('Delete Emails', `Delete ${state.selectedEmails.size} selected email(s)?`, async () => {
+                try {
+                    const result = await api.deleteEmails(Array.from(state.selectedEmails));
+                    if (result.success) {
+                        showToast(`${result.deleted} email(s) deleted`, 'success');
+                        state.selectedEmails.clear();
+                        updateBulkActionsBar();
+                        loadEmails();
+                        loadStats();
+                    } else {
+                        showToast(result.error || 'Delete failed', 'error');
+                    }
+                } catch (err) {
+                    showToast('Delete failed', 'error');
+                }
+            });
+        };
+
+        document.getElementById('bulkUnsubscribeBtn').onclick = () => {
+            showConfirm('Unsubscribe & Delete', `Unsubscribe and delete all emails from this sender?`, async () => {
+                if (state.currentEmail) {
+                    try {
+                        const result = await api.unsubscribe(state.currentEmail.sender);
+                        if (result.success) {
+                            showToast(result.message, 'success');
+                            state.selectedEmails.clear();
+                            updateBulkActionsBar();
+                            loadEmails();
+                            loadStats();
+                        } else {
+                            showToast(result.error || 'Unsubscribe failed', 'error');
+                        }
+                    } catch (err) {
+                        showToast('Unsubscribe failed', 'error');
+                    }
+                }
+            });
+        };
+
+        document.getElementById('deleteEmailBtn').onclick = () => {
+            if (state.currentEmail) {
+                showConfirm('Delete Email', 'Delete this email?', async () => {
+                    try {
+                        const result = await api.deleteEmails([state.currentEmail.id]);
+                        if (result.success) {
+                            showToast('Email deleted', 'success');
+                            document.getElementById('emailDetailPanel').classList.add('hidden');
+                            loadEmails();
+                            loadStats();
+                        } else {
+                            showToast(result.error || 'Delete failed', 'error');
+                        }
+                    } catch (err) {
+                        showToast('Delete failed', 'error');
+                    }
+                });
+            }
+        };
+
+        document.getElementById('unsubscribeEmailBtn').onclick = () => {
+            if (state.currentEmail) {
+                showConfirm('Unsubscribe & Delete', 'Delete all emails from this sender?', async () => {
+                    try {
+                        const result = await api.unsubscribe(state.currentEmail.sender);
+                        if (result.success) {
+                            showToast(result.message, 'success');
+                            document.getElementById('emailDetailPanel').classList.add('hidden');
+                            loadEmails();
+                            loadStats();
+                        } else {
+                            showToast(result.error || 'Unsubscribe failed', 'error');
+                        }
+                    } catch (err) {
+                        showToast('Unsubscribe failed', 'error');
+                    }
+                });
+            }
+        };
+
+        // Triage Event Handlers
+        document.getElementById('extractBatchBtn').onclick = extractBatch;
+        document.getElementById('copyBatchBtn').onclick = copyBatchToClipboard;
+        document.getElementById('executeCommandsBtn').onclick = executeCommands;
+
+        // Check if already connected on load
+        async function checkConnection() {
+            try {
+                const result = await api.status();
+                if (result.connected) {
+                    state.connected = true;
+                    document.getElementById('loginModal').classList.add('hidden');
+                    document.getElementById('mainApp').classList.remove('hidden');
+                    document.getElementById('connectedEmail').textContent = result.email;
+                    loadEmails();
+                    loadStats();
+                }
+            } catch (err) {
+                console.log('Not connected');
+            }
+        }
+
+        checkConnection();
+    </script>
+
+<script>
+/**
+ * Iframe 元素高亮注入脚本
+ * 需要在目标网站中引入此脚本来支持跨域 iframe 高亮功能
+ *
+ * 使用方法：
+ * 1. 将此脚本添加到目标网站的 HTML 中
+ * 2. 或通过浏览器扩展、用户脚本等方式注入
+ */
+
+(function () {
+  "use strict";
+
+  // 检查是否在 iframe 中
+  if (window.self === window.top) {
+    return; // 不在 iframe 中，不执行
+  }
+
+  // 检查是否已经初始化过
+  if (window.__iframeHighlightInitialized) {
+    return;
+  }
+  window.__iframeHighlightInitialized = true;
+  console.log("Iframe 高亮脚本已加载");
+
+  // 创建高亮覆盖层
+  var overlay = document.createElement("div");
+  overlay.id = "iframe-highlight-overlay";
+  overlay.style.cssText = "\n    position: fixed;\n    top: 0;\n    left: 0;\n    width: 100vw;\n    height: 100vh;\n    pointer-events: none;\n    z-index: 999999;\n    overflow: hidden;\n  ";
+
+  // 创建悬停高亮框（虚线边框）
+  var highlightBox = document.createElement("div");
+  highlightBox.id = "iframe-highlight-box";
+  highlightBox.style.cssText = "\n    position: absolute;\n    border: 2px dashed #007AFF;\n    background: rgba(0, 122, 255, 0.08);\n    pointer-events: none;\n    display: none;\n    transition: all 0.1s ease;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);\n    border-radius: 2px;\n  ";
+
+  // 创建选中节点的常驻高亮框（实线边框）
+  var selectedBox = document.createElement("div");
+  selectedBox.id = "iframe-selected-box";
+  selectedBox.style.cssText = "\n    position: absolute;\n    border: 2px solid #007AFF;\n    pointer-events: none;\n    display: none;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 107, 53, 0.4);\n    border-radius: 2px;\n    z-index: 1000000;\n  ";
+
+  // 创建悬停标签显示
+  var tagLabel = document.createElement("div");
+  tagLabel.id = "iframe-tag-label";
+  tagLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 2px 6px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 2px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000001;\n    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);\n    font-weight: 500;\n  ";
+
+  // 创建选中节点标签
+  var selectedLabel = document.createElement("div");
+  selectedLabel.id = "iframe-selected-label";
+  selectedLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 3px 8px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 3px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000002;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);\n    font-weight: 600;\n  ";
+  overlay.appendChild(highlightBox);
+  overlay.appendChild(selectedBox);
+  overlay.appendChild(tagLabel);
+  overlay.appendChild(selectedLabel);
+  document.body.appendChild(overlay);
+
+  // 存储当前选中的元素
+  var selectedElement = null;
+  var highlightEnabled = false;
+
+  // 更新选中元素的高亮显示
+  function updateSelectedHighlight(element) {
+    console.log("updateSelectedHighlight called with:", element);
+    if (!element) {
+      selectedBox.style.display = "none";
+      selectedLabel.style.display = "none";
+      selectedElement = null;
+      console.log("Cleared selected highlight");
+      return;
+    }
+    selectedElement = element;
+    var rect = element.getBoundingClientRect();
+    console.log("Selected element rect:", rect);
+
+    // 更新选中高亮框位置
+    selectedBox.style.display = "block";
+    selectedBox.style.left = "".concat(rect.left - 2, "px");
+    selectedBox.style.top = "".concat(rect.top - 2, "px");
+    selectedBox.style.width = "".concat(rect.width + 4, "px");
+    selectedBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新选中标签位置和内容
+    selectedLabel.style.display = "block";
+    selectedLabel.textContent = "\u2713 <".concat(element.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 28;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 5) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    var labelWidth = selectedLabel.offsetWidth || 100; // 预估宽度
+    if (labelLeft + labelWidth > window.innerWidth - 10) {
+      labelLeft = window.innerWidth - labelWidth - 10;
+    }
+    selectedLabel.style.left = "".concat(Math.max(5, labelLeft), "px");
+    selectedLabel.style.top = "".concat(labelTop, "px");
+    console.log("Selected highlight positioned at:", {
+      left: selectedBox.style.left,
+      top: selectedBox.style.top,
+      width: selectedBox.style.width,
+      height: selectedBox.style.height
+    });
+  }
+  function getElementSelector(element) {
+    if (!(element instanceof Element)) throw new Error('Argument must be a DOM element');
+    var segments = [];
+    var current = element;
+    while (current !== document.documentElement) {
+      var selector = '';
+      // 优先检查唯一ID
+      if (current.id && document.querySelectorAll("#".concat(current.id)).length === 1) {
+        segments.unshift("#".concat(current.id));
+        break; // ID唯一，无需继续向上
+      }
+
+      // 生成类名选择器（取第一个有效类名）
+      var classes = Array.from(current.classList).filter(function (c) {
+        return !c.startsWith('js-');
+      });
+      var className = classes.length > 0 ? ".".concat(classes[0]) : '';
+
+      // 生成位置索引（nth-child）
+      var tag = current.tagName.toLowerCase();
+      if (!className) {
+        var siblings = Array.from(current.parentNode.children);
+        var index = siblings.findIndex(function (el) {
+          return el === current;
+        }) + 1;
+        selector = "".concat(tag, ":nth-child(").concat(index, ")");
+      } else {
+        selector = className;
+      }
+      segments.unshift(selector);
+      current = current.parentElement;
+    }
+
+    // 处理根元素
+    if (current === document.documentElement) {
+      segments.unshift('html');
+    }
+    return segments.join(' > ');
+  }
+
+  // 获取元素文本内容
+  function getElementText(element) {
+    var _element$textContent;
+    if (element.tagName === "INPUT") {
+      return element.value || element.placeholder || "";
+    }
+    if (element.tagName === "TEXTAREA") {
+      return element.value || element.placeholder || "";
+    }
+    var text = ((_element$textContent = element.textContent) === null || _element$textContent === void 0 ? void 0 : _element$textContent.trim()) || "";
+    return text.length > 50 ? text.substring(0, 50) + "..." : text;
+  }
+
+  // 获取元素属性信息
+  function getElementAttributes(element) {
+    var attrs = {};
+    for (var i = 0; i < element.attributes.length; i++) {
+      var attr = element.attributes[i];
+      attrs[attr.name] = attr.value;
+    }
+    return attrs;
+  }
+
+  // 鼠标悬停事件处理
+  function handleMouseOver(e) {
+    if (!highlightEnabled) return;
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免高亮 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 如果是已选中的元素，不显示悬停高亮
+    if (target === selectedElement) {
+      highlightBox.style.display = "none";
+      tagLabel.style.display = "none";
+      return;
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+
+    // 更新悬停高亮框位置
+    highlightBox.style.display = "block";
+    highlightBox.style.left = "".concat(rect.left - 2, "px");
+    highlightBox.style.top = "".concat(rect.top - 2, "px");
+    highlightBox.style.width = "".concat(rect.width + 4, "px");
+    highlightBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新标签位置和内容
+    tagLabel.style.display = "block";
+    tagLabel.textContent = "<".concat(target.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 22;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 0) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    if (labelLeft + tagLabel.offsetWidth > window.innerWidth) {
+      labelLeft = window.innerWidth - tagLabel.offsetWidth - 5;
+    }
+    tagLabel.style.left = "".concat(Math.max(0, labelLeft), "px");
+    tagLabel.style.top = "".concat(labelTop, "px");
+
+    // 发送消息到父窗口
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 鼠标离开事件处理
+  function handleMouseOut(e) {
+    if (!highlightEnabled) return;
+    var relatedTarget = e.relatedTarget;
+
+    // 如果鼠标移动到高亮相关元素上，不隐藏高亮
+    if (relatedTarget && (relatedTarget === highlightBox || relatedTarget === tagLabel || relatedTarget === overlay || relatedTarget === selectedBox || relatedTarget === selectedLabel)) {
+      return;
+    }
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: null,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 点击事件处理
+  function handleClick(e) {
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免处理 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 检查是否是交互元素，这些元素需要保留默认行为
+    var isInteractiveElement = ['input', 'textarea', 'select', 'button', 'a'].includes(target.tagName.toLowerCase());
+
+    // 如果高亮功能启用，对于非交互元素阻止默认行为和事件传播
+    if (highlightEnabled) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+    console.log("Element clicked:", {
+      tagName: target.tagName,
+      selector: selector,
+      rect: rect
+    });
+
+    // 立即更新选中高亮
+    updateSelectedHighlight(target);
+
+    // 隐藏悬停高亮，因为现在是选中状态
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-click",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 监听来自父窗口的消息
+  function handleParentMessage(event) {
+    console.log("Received message from parent:", event.data);
+    if (event.data.type === "iframe-highlight-toggle") {
+      var enabled = event.data.enabled;
+      console.log("Highlight toggle:", enabled);
+      if (enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "enable-iframe-highlight") {
+      console.log("Enable iframe highlight");
+      enableHighlight();
+    } else if (event.data.type === "disable-iframe-highlight") {
+      console.log("Disable iframe highlight");
+      disableHighlight();
+    } else if (event.data.type === "toggle-iframe-highlight") {
+      var _enabled = event.data.enabled !== undefined ? event.data.enabled : !highlightEnabled;
+      console.log("Toggle iframe highlight to:", _enabled);
+      if (_enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "update-selected-element") {
+      var selector = event.data.selector;
+      console.log("Update selected element with selector:", selector);
+      if (selector) {
+        try {
+          var element = document.querySelector(selector);
+          console.log("Found element by selector:", element);
+          updateSelectedHighlight(element);
+        } catch (error) {
+          console.warn("Failed to select element:", error);
+          updateSelectedHighlight(null);
+        }
+      } else {
+        updateSelectedHighlight(null);
+      }
+    } else if (event.data.type === "clear-selected-element") {
+      console.log("Clear selected element");
+      updateSelectedHighlight(null);
+    }
+  }
+
+  // 启用高亮功能
+  function enableHighlight() {
+    console.log("Enabling highlight");
+    document.addEventListener("mouseover", handleMouseOver, true);
+    document.addEventListener("mouseout", handleMouseOut, true);
+    document.addEventListener("click", handleClick, true);
+    highlightEnabled = true;
+    overlay.style.display = "block";
+  }
+
+  // 禁用高亮功能
+  function disableHighlight() {
+    console.log("Disabling highlight");
+    highlightEnabled = false;
+    // 保持事件监听器，但通过 highlightEnabled 变量控制行为
+    // 这样可以保留选中状态的显示
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    // 不隐藏 selectedBox 和 selectedLabel，保留选中状态
+  }
+
+  // 完全禁用高亮功能（移除所有监听器）
+  function fullyDisableHighlight() {
+    console.log("Fully disabling highlight");
+    highlightEnabled = false;
+    document.removeEventListener("mouseover", handleMouseOver, true);
+    document.removeEventListener("mouseout", handleMouseOut, true);
+    document.removeEventListener("click", handleClick, true);
+    overlay.style.display = "none";
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    selectedBox.style.display = "none";
+    selectedLabel.style.display = "none";
+  }
+
+  // 添加事件监听
+  enableHighlight();
+  window.addEventListener("message", handleParentMessage);
+
+  // 暴露全局函数供外部调用
+  window.__iframeHighlightControl = {
+    enable: enableHighlight,
+    disable: disableHighlight,
+    fullyDisable: fullyDisableHighlight,
+    isEnabled: function isEnabled() {
+      return highlightEnabled;
+    },
+    getSelectedElement: function getSelectedElement() {
+      return selectedElement;
+    },
+    updateSelected: updateSelectedHighlight,
+    // 通过消息发送开关控制
+    sendToggleMessage: function sendToggleMessage(enabled) {
+      window.parent.postMessage({
+        type: 'iframe-highlight-status',
+        enabled: enabled || highlightEnabled,
+        source: 'iframe-highlight-injector'
+      }, '*');
+    }
+  };
+
+  // 通知父窗口脚本已加载
+  try {
+    window.parent.postMessage({
+      type: "iframe-highlight-ready",
+      data: {
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: Date.now()
+      },
+      source: "iframe-highlight-injector"
+    }, "*");
+  } catch (error) {
+    console.warn("无法发送就绪消息到父窗口:", error);
+  }
+
+  // 清理函数
+  window.__iframeHighlightCleanup = function () {
+    fullyDisableHighlight();
+    window.removeEventListener("message", handleParentMessage);
+    if (overlay.parentElement) {
+      overlay.parentElement.removeChild(overlay);
+    }
+    delete window.__iframeHighlightInitialized;
+    delete window.__iframeHighlightCleanup;
+  };
+})();
+
+</script>
+</body>
+</html>
