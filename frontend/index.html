@@ -199,8 +199,12 @@
                         <div class="mb-4">
                             <p class="text-xs text-gray-400 mb-1">General Cleanup</p>
                             <button id="cleanupOldBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-gray-700 text-white hover:bg-gray-600 flex items-center justify-between gap-2">
-                                <span class="flex items-center gap-2"><span>🗑️</span><span>Old Unread (1+ year)</span></span>
+                                <span class="flex items-center gap-2"><span>🗑️</span><span>All Unread</span></span>
                                 <span id="countOld" class="text-xs bg-gray-600 px-2 py-0.5 rounded">-</span>
+                            </button>
+                            <button id="cleanupOld2yBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-500 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2"><span>⏰</span><span>Old Unread (2+ years)</span></span>
+                                <span id="countOld2y" class="text-xs bg-red-500 px-2 py-0.5 rounded">-</span>
                             </button>
                             <button id="cleanupOldReadBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-slate-600 text-white hover:bg-slate-500 flex items-center justify-between gap-2">
                                 <span class="flex items-center gap-2"><span>📚</span><span>Old Read (2+ years)</span></span>
@@ -1225,6 +1229,7 @@ Example:
 
         // Smart Cleanup Event Handlers
         document.getElementById('cleanupOldBtn').onclick = () => loadCleanupEmails('old_unread');
+        document.getElementById('cleanupOld2yBtn').onclick = () => loadCleanupEmails('old_unread_2y');
         document.getElementById('cleanupOldReadBtn').onclick = () => loadCleanupEmails('old_read');
         document.getElementById('cleanupCodesBtn').onclick = () => loadCleanupEmails('verification_codes');
         document.getElementById('cleanupPasswordResetBtn').onclick = () => loadCleanupEmails('password_reset');
@@ -1243,7 +1248,8 @@ Example:
             loading.classList.remove('hidden');
 
             const typeLabels = {
-                'old_unread': 'Old Unread (1+ year)',
+                'old_unread': 'All Unread',
+                'old_unread_2y': 'Old Unread (2+ years)',
                 'old_read': 'Old Read (2+ years)',
                 'verification_codes': 'Verification Codes',
                 'password_reset': 'Password Resets',

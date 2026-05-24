@@ -636,6 +636,7 @@ def search_cleanup():
 
         # IMAP search combinations - simplified without OR clauses for Yahoo compatibility
         # Yahoo IMAP may not support OR in searches, so using single keywords
+        # OLD_UNREAD_2Y: Combined unread + old date
         cleanup_searches = {
             'verification_codes': 'SUBJECT "verification"',
             'password_reset': 'SUBJECT "password"',
@@ -649,6 +650,7 @@ def search_cleanup():
             'comment_alerts': 'SUBJECT "comment"',
             'old_unread': 'UNSEEN',
             'old_read': 'SEEN',  # Previously read emails
+            'old_unread_2y': f'UNSEEN BEFORE {date_ranges["2y"]}',  # Unread over 2 years old
             'auto_confirmations': 'SUBJECT "confirm"',
             'attachments_old': 'ALL',
             'noreply': 'FROM "noreply"',
@@ -679,8 +681,8 @@ def search_cleanup():
         email_ids = messages[0].split() if messages[0] else []
 
         # old_unread and old_read search ALL emails - keep in original order
-        if cleanup_type in ['old_unread', 'old_read']:
-            pass  # Keep UNSEEN/SEEN order
+        if cleanup_type in ['old_unread', 'old_read', 'old_unread_2y']:
+            pass  # Keep UNSEEN/BEFORE order - oldest first for cleanup
         else:
             email_ids = list(reversed(email_ids))  # Most recent first for keyword searches
 
@@ -763,6 +765,7 @@ def search_cleanup_count():
             ('social', 'SUBJECT "follower"'),
             ('old_unread', 'UNSEEN'),
             ('old_read', 'SEEN'),  # Previously read emails
+            ('old_unread_2y', f'UNSEEN BEFORE {date_ranges["2y"]}'),  # Unread over 2 years old
             ('auto_confirmations', 'SUBJECT "confirm"'),
         ]
 
