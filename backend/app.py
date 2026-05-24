@@ -1,1039 +1,514 @@
 """
-Yahoo Mail Cleanup Agent - Backend
-Handles IMAP connection and email operations for Yahoo Mail
+Yahoo Mail Declutter Tool - Backend v2
+Search, quick-pick cleanup, sender cleanup, and unsubscribe-link review.
+All bulk actions move messages to Trash for review in Yahoo.
 """
 
-import imaplib
 import email
-from email.header import decode_header
-import re
-from datetime import datetime
-from flask import Flask, request, jsonify, session
-from flask_cors import CORS
-import json
+import imaplib
 import logging
+import os
+import re
+from datetime import datetime, timedelta
+from email.header import decode_header
 from urllib.parse import urlparse
 
-# Configure logging
+from flask import Flask, jsonify, request, session
+from flask_cors import CORS
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
-app.secret_key = 'yahoo-mail-cleanup-secret-key-change-in-production'
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-me-in-railway")
 
-# Global connection state
 mail_connection = None
 connected_email = None
+trash_folder_cache = None
 
 
 def decode_email_header(header):
-    """Decode email header properly"""
     if header is None:
         return ""
-
-    decoded_parts = []
     try:
-        parts = decode_header(header)
-        for content, charset in parts:
+        output = []
+        for content, charset in decode_header(header):
             if isinstance(content, bytes):
-                charset = charset or 'utf-8'
-                try:
-                    decoded_parts.append(content.decode(charset, errors='replace'))
-                except (LookupError, UnicodeDecodeError):
-                    decoded_parts.append(content.decode('utf-8', errors='replace'))
+                output.append(content.decode(charset or "utf-8", errors="replace"))
             else:
-                decoded_parts.append(content)
-    except Exception as e:
-        logger.warning(f"Header decode error: {e}")
-        return header
-
-    return ''.join(decoded_parts)
-
-
-def extract_urls(text):
-    """Extract URLs from text"""
-    url_pattern = re.compile(
-        r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
-    )
-    return url_pattern.findall(text)
-
-
-def find_unsubscribe_links(text, urls):
-    """Find unsubscribe links from URLs"""
-    unsubscribe_keywords = ['unsubscribe', 'opt-out', 'optout', 'email-preferences',
-                           'manage-subscription', 'notification-preferences', 'unsub']
-    unsubscribe_links = []
-
-    for url in urls:
-        url_lower = url.lower()
-        parsed = urlparse(url)
-        path_domain = f"{parsed.netloc}{parsed.path}".lower()
-
-        for keyword in unsubscribe_keywords:
-            if keyword in url_lower or keyword in path_domain:
-                unsubscribe_links.append(url)
-                break
-
-    return unsubscribe_links
-
-
-def categorize_email(sender_domain, subject, has_unsubscribe):
-    """Categorize email type"""
-    subject_lower = (subject or '').lower()
-
-    if any(x in subject_lower for x in ['facebook', 'twitter', 'instagram', 'linkedin', 'social']):
-        return 'social'
-    elif any(x in subject_lower for x in ['linkedin', 'job', 'indeed', 'resume', 'interview']):
-        return 'job'
-    elif any(x in subject_lower for x in ['amazon', 'ebay', 'order', 'shipping', 'delivery', 'tracking']):
-        return 'shopping'
-    elif has_unsubscribe and 'newsletter' in subject_lower:
-        return 'newsletter'
-    elif has_unsubscribe:
-        return 'marketing'
-    else:
-        return 'other'
+                output.append(str(content))
+        return "".join(output)
+    except Exception:
+        return str(header)
 
 
 def get_email_body(msg):
-    """Extract email body text"""
     body = ""
-    html_content = ""
-
-    if msg.is_multipart():
-        for part in msg.walk():
-            content_type = part.get_content_type()
-            content_disposition = str(part.get_content_disposition())
-
-            if content_disposition == 'attachment':
-                continue
-
-            if content_type == 'text/plain' and not body:
-                try:
-                    payload = part.get_payload(decode=True)
-                    charset = part.get_content_charset() or 'utf-8'
-                    body = payload.decode(charset, errors='replace')
-                except:
-                    pass
-            elif content_type == 'text/html' and not html_content:
-                try:
-                    payload = part.get_payload(decode=True)
-                    charset = part.get_content_charset() or 'utf-8'
-                    html_content = payload.decode(charset, errors='replace')
-                except:
-                    pass
-    else:
-        try:
-            payload = msg.get_payload(decode=True)
-            charset = msg.get_content_charset() or 'utf-8'
-            body = payload.decode(charset, errors='replace')
-        except:
-            pass
-
-    # Strip HTML for plain text if needed
-    if body:
-        body = re.sub(r'<[^>]+>', ' ', body)
-        body = re.sub(r'\s+', ' ', body).strip()
-
-    return body or html_content
-
-
-@app.route('/api/connect', methods=['POST'])
-def connect():
-    """Connect to Yahoo Mail"""
-    global mail_connection, connected_email
-
-    data = request.get_json()
-    email_address = data.get('email')
-    password = data.get('password')
-
-    if not email_address or not password:
-        return jsonify({'success': False, 'error': 'Email and password required'}), 400
-
+    html = ""
     try:
-        # Yahoo IMAP server
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_content_disposition() == "attachment":
+                    continue
+                payload = part.get_payload(decode=True)
+                if not payload:
+                    continue
+                text = payload.decode(part.get_content_charset() or "utf-8", errors="replace")
+                if part.get_content_type() == "text/plain" and not body:
+                    body = text
+                elif part.get_content_type() == "text/html" and not html:
+                    html = text
+        else:
+            payload = msg.get_payload(decode=True)
+            if payload:
+                body = payload.decode(msg.get_content_charset() or "utf-8", errors="replace")
+    except Exception as exc:
+        logger.warning("Body parse failed: %s", exc)
+    text = body or html
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def extract_urls(text):
+    return re.findall(r"https?://[^\s\"'<>]+", text or "")
+
+
+def find_unsubscribe_links(text):
+    keywords = ["unsubscribe", "opt-out", "optout", "email-preferences", "manage-subscription", "unsub"]
+    links = []
+    for url in extract_urls(text):
+        parsed = urlparse(url)
+        haystack = f"{url} {parsed.netloc} {parsed.path}".lower()
+        if any(keyword in haystack for keyword in keywords):
+            links.append(url)
+    return list(dict.fromkeys(links))[:5]
+
+
+def sender_domain(sender):
+    match = re.search(r"<([^>]+)>", sender or "")
+    address = match.group(1) if match else sender or ""
+    return address.split("@")[-1].lower().strip() if "@" in address else ""
+
+
+def imap_date(days_ago):
+    return (datetime.now() - timedelta(days=days_ago)).strftime("%d-%b-%Y")
+
+
+def parse_folder_name(raw_folder):
+    text = raw_folder.decode(errors="replace") if isinstance(raw_folder, bytes) else str(raw_folder)
+    match = re.search(r'"([^"]+)"\s*$', text)
+    if match:
+        return match.group(1)
+    return text.split(" ")[-1].strip('"')
+
+
+def list_folder_names():
+    status, folders = mail_connection.list()
+    if status != "OK" or not folders:
+        return []
+    return [parse_folder_name(folder) for folder in folders]
+
+
+def find_trash_folder():
+    global trash_folder_cache
+    if trash_folder_cache:
+        return trash_folder_cache
+    folders = list_folder_names()
+    for wanted in ["Trash", "Deleted", "Deleted Items", "INBOX/Trash", "Bulk Mail/Trash"]:
+        for folder in folders:
+            if folder.lower() == wanted.lower():
+                trash_folder_cache = folder
+                return folder
+    for folder in folders:
+        lower = folder.lower()
+        if "trash" in lower or "deleted" in lower:
+            trash_folder_cache = folder
+            return folder
+    trash_folder_cache = "Trash"
+    return trash_folder_cache
+
+
+def require_connection():
+    return mail_connection is not None
+
+
+def search_ids(*criteria):
+    try:
+        status, messages = mail_connection.search(None, *criteria)
+        if status != "OK" or not messages or not messages[0]:
+            return []
+        return messages[0].split()
+    except Exception as exc:
+        logger.warning("Yahoo search failed for %s: %s", criteria, exc)
+        return []
+
+
+def unique_ids(groups):
+    seen = set()
+    results = []
+    for group in groups:
+        for msg_id in group:
+            key = msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id)
+            if key not in seen:
+                seen.add(key)
+                results.append(msg_id)
+    return results
+
+
+def recipe_searches(name):
+    return {
+        "verification_codes": [
+            ("SUBJECT", "verification"), ("SUBJECT", "verify"), ("SUBJECT", "code"),
+            ("SUBJECT", "passcode"), ("SUBJECT", "login code"), ("SUBJECT", "security code"),
+            ("SUBJECT", "authentication"), ("SUBJECT", "2FA"),
+        ],
+        "password_resets": [
+            ("SUBJECT", "password"), ("SUBJECT", "reset"), ("SUBJECT", "recover"),
+            ("SUBJECT", "account access"), ("SUBJECT", "sign-in"), ("SUBJECT", "login"),
+        ],
+        "receipts": [
+            ("SUBJECT", "receipt"), ("SUBJECT", "invoice"), ("SUBJECT", "order confirmation"),
+            ("SUBJECT", "payment"), ("SUBJECT", "purchase"), ("SUBJECT", "transaction"),
+            ("SUBJECT", "your order"),
+        ],
+        "shipping": [
+            ("SUBJECT", "ship"), ("SUBJECT", "shipped"), ("SUBJECT", "shipping"),
+            ("SUBJECT", "delivery"), ("SUBJECT", "delivered"), ("SUBJECT", "tracking"),
+            ("SUBJECT", "out for delivery"),
+        ],
+        "carts": [
+            ("SUBJECT", "cart"), ("SUBJECT", "checkout"), ("SUBJECT", "left something"),
+            ("SUBJECT", "still interested"),
+        ],
+        "newsletters": [
+            ("SUBJECT", "newsletter"), ("SUBJECT", "digest"), ("SUBJECT", "weekly"),
+            ("SUBJECT", "roundup"), ("SUBJECT", "updates"),
+        ],
+        "promotions": [
+            ("SUBJECT", "sale"), ("SUBJECT", "deal"), ("SUBJECT", "coupon"),
+            ("SUBJECT", "offer"), ("SUBJECT", "limited time"), ("SUBJECT", "clearance"),
+            ("SUBJECT", "% off"),
+        ],
+        "trials": [
+            ("SUBJECT", "trial"), ("SUBJECT", "expires"), ("SUBJECT", "expired"),
+            ("SUBJECT", "renew"), ("SUBJECT", "subscription"),
+        ],
+        "social": [
+            ("SUBJECT", "follow"), ("SUBJECT", "liked"), ("SUBJECT", "mentioned"),
+            ("SUBJECT", "tagged"), ("SUBJECT", "comment"), ("FROM", "facebook"),
+            ("FROM", "instagram"), ("FROM", "linkedin"), ("FROM", "twitter"),
+        ],
+        "noreply": [
+            ("FROM", "noreply"), ("FROM", "no-reply"), ("FROM", "donotreply"),
+            ("FROM", "do-not-reply"),
+        ],
+        "old_unread_1y": [("UNSEEN", "BEFORE", imap_date(365))],
+        "old_unread_2y": [("UNSEEN", "BEFORE", imap_date(730))],
+        "old_read_2y": [("SEEN", "BEFORE", imap_date(730))],
+        "old_read_5y": [("SEEN", "BEFORE", imap_date(1825))],
+        "old_promotions_6m": [("SUBJECT", "sale", "BEFORE", imap_date(180)), ("SUBJECT", "coupon", "BEFORE", imap_date(180))],
+        "old_receipts_2y": [("SUBJECT", "receipt", "BEFORE", imap_date(730)), ("SUBJECT", "invoice", "BEFORE", imap_date(730))],
+    }.get(name)
+
+
+def run_recipe(name):
+    searches = recipe_searches(name)
+    if searches is None:
+        return None
+    groups = []
+    for criteria in searches:
+        normalized = []
+        for i, part in enumerate(criteria):
+            if i % 2 == 1 and part not in [imap_date(365), imap_date(730), imap_date(1825), imap_date(180)]:
+                normalized.append(f'"{part}"')
+            else:
+                normalized.append(part)
+        groups.append(search_ids(*normalized))
+    return unique_ids(groups)
+
+
+def summarize_email(msg_id, matched_by=None):
+    status, data = mail_connection.fetch(msg_id, "(RFC822)")
+    if status != "OK" or not data:
+        return None
+    msg = email.message_from_bytes(data[0][1])
+    subject = decode_email_header(msg.get("Subject", ""))
+    sender = decode_email_header(msg.get("From", ""))
+    body = get_email_body(msg)
+    unsub_links = find_unsubscribe_links(body)
+    return {
+        "id": msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id),
+        "subject": subject,
+        "sender": sender,
+        "sender_domain": sender_domain(sender),
+        "date": msg.get("Date", ""),
+        "snippet": body[:240] if body else "(No content)",
+        "has_unsubscribe": bool(unsub_links),
+        "unsubscribe_links": unsub_links,
+        "matched_by": matched_by or "Search result",
+    }
+
+
+def move_to_trash(msg_id):
+    folder = find_trash_folder()
+    try:
+        status, _ = mail_connection.move(str(msg_id), folder)
+        if status == "OK":
+            return True, folder, None
+    except Exception as exc:
+        logger.warning("MOVE failed for %s: %s", msg_id, exc)
+    try:
+        status, _ = mail_connection.copy(str(msg_id), folder)
+        if status == "OK":
+            mail_connection.store(str(msg_id), "+FLAGS", "\\Deleted")
+            mail_connection.expunge()
+            return True, folder, None
+        return False, folder, f"COPY returned {status}"
+    except Exception as exc:
+        return False, folder, str(exc)
+
+
+@app.route("/api/health")
+def health():
+    return jsonify({"ok": True, "app": "Yahoo Mail Declutter Tool v2"})
+
+
+@app.route("/api/connect", methods=["POST"])
+def connect():
+    global mail_connection, connected_email, trash_folder_cache
+    data = request.get_json() or {}
+    email_address = data.get("email")
+    password = data.get("password")
+    if not email_address or not password:
+        return jsonify({"success": False, "error": "Email and app password required"}), 400
+    try:
         mail = imaplib.IMAP4_SSL("imap.mail.yahoo.com", 993)
         mail.login(email_address, password)
-
-        # Select INBOX
-        mail.select('INBOX')
-
+        mail.select("INBOX")
         mail_connection = mail
         connected_email = email_address
-
-        session['connected'] = True
-        session['email'] = email_address
-
-        logger.info(f"Connected to Yahoo Mail: {email_address}")
-
-        return jsonify({
-            'success': True,
-            'message': f'Connected to {email_address}',
-            'email': email_address
-        })
-
-    except imaplib.IMAP4.error as e:
-        error_msg = str(e)
-        if b'AUTH' in error_msg.encode() if isinstance(error_msg, str) else b'AUTH' in e:
-            return jsonify({'success': False, 'error': 'Invalid credentials. Please check your email and app password.'}), 401
-        return jsonify({'success': False, 'error': f'Authentication failed: {error_msg}'}), 401
-    except Exception as e:
-        logger.error(f"Connection error: {e}")
-        return jsonify({'success': False, 'error': f'Connection failed: {str(e)}'}), 500
+        trash_folder_cache = None
+        session["connected"] = True
+        session["email"] = email_address
+        return jsonify({"success": True, "email": email_address, "message": f"Connected to {email_address}"})
+    except imaplib.IMAP4.error as exc:
+        return jsonify({"success": False, "error": f"Yahoo authentication failed. Use a Yahoo app password. Details: {exc}"}), 401
+    except Exception as exc:
+        logger.error("Connection failed: %s", exc)
+        return jsonify({"success": False, "error": f"Connection failed: {exc}"}), 500
 
 
-@app.route('/api/status', methods=['GET'])
+@app.route("/api/status")
 def status():
-    """Check connection status"""
     global mail_connection, connected_email
-
     if mail_connection is None:
-        return jsonify({'connected': False})
-
+        return jsonify({"connected": False})
     try:
-        mail_connection.noop()  # Test connection
-        return jsonify({
-            'connected': True,
-            'email': connected_email
-        })
-    except:
+        mail_connection.noop()
+        return jsonify({"connected": True, "email": connected_email})
+    except Exception:
         mail_connection = None
         connected_email = None
-        return jsonify({'connected': False})
+        return jsonify({"connected": False})
 
 
-@app.route('/api/disconnect', methods=['POST'])
+@app.route("/api/disconnect", methods=["POST"])
 def disconnect():
-    """Disconnect from Yahoo Mail"""
-    global mail_connection, connected_email
-
+    global mail_connection, connected_email, trash_folder_cache
     if mail_connection:
         try:
             mail_connection.logout()
-        except:
+        except Exception:
             pass
-        mail_connection = None
-        connected_email = None
-
+    mail_connection = None
+    connected_email = None
+    trash_folder_cache = None
     session.clear()
-    return jsonify({'success': True, 'message': 'Disconnected'})
+    return jsonify({"success": True})
 
 
-@app.route('/api/search', methods=['POST'])
-def search_emails():
-    """Search emails with filters"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    data = request.get_json()
-    query = data.get('query', '')
-    sender = data.get('sender', '')
-    subject = data.get('subject', '')
-    date_from = data.get('date_from', '')
-    date_to = data.get('date_to', '')
-    page = data.get('page', 1)
-    per_page = data.get('per_page', 20)
-
+@app.route("/api/folders")
+def folders():
+    if not require_connection():
+        return jsonify({"error": "Not connected"}), 401
     try:
-        # Build search criteria
-        search_criteria = []
-
-        if sender:
-            search_criteria.append(f'FROM "{sender}"')
-        if subject:
-            search_criteria.append(f'SUBJECT "{subject}"')
-        if date_from:
-            search_criteria.append(f'SINCE "{date_from}"')
-        if date_to:
-            search_criteria.append(f'BEFORE "{date_to}"')
-        if query:
-            search_criteria.append(f'TEXT "{query}"')
-
-        if not search_criteria:
-            search_criteria = ['ALL']
-
-        # Execute search - split into individual arguments
-        search_args = ' '.join(search_criteria)
-        logger.info(f"Executing search: {search_args}")
-        status, messages = mail_connection.search(None, *search_criteria)
-
-        if status != 'OK':
-            return jsonify({'error': 'Search failed'}), 500
-
-        email_ids = messages[0].split() if messages[0] else []
-        total = len(email_ids)
-
-        # Paginate
-        start = (page - 1) * per_page
-        end = start + per_page
-        page_ids = email_ids[start:end]
-
-        # Fetch email summaries
-        emails = []
-        for email_id in reversed(page_ids):
-            try:
-                status, msg_data = mail_connection.fetch(email_id, '(RFC822)')
-                if status == 'OK' and msg_data:
-                    raw_email = msg_data[0][1]
-                    msg = email.message_from_bytes(raw_email)
-
-                    subject = decode_email_header(msg.get('Subject', ''))
-                    sender = decode_email_header(msg.get('From', ''))
-                    date = msg.get('Date', '')
-                    message_id = email_id.decode()
-
-                    # Get snippet
-                    body = get_email_body(msg)
-                    snippet = body[:200] if body else '(No content)'
-
-                    # Extract URLs and check for unsubscribe
-                    urls = extract_urls(body)
-                    unsubscribe_links = find_unsubscribe_links(body, urls)
-
-                    emails.append({
-                        'id': message_id,
-                        'subject': subject,
-                        'sender': sender,
-                        'date': date,
-                        'snippet': snippet,
-                        'has_unsubscribe': len(unsubscribe_links) > 0,
-                        'unsubscribe_links': unsubscribe_links[:3]  # Limit to first 3
-                    })
-            except Exception as e:
-                logger.warning(f"Error fetching email {email_id}: {e}")
-                continue
-
-        return jsonify({
-            'emails': emails,
-            'total': total,
-            'page': page,
-            'per_page': per_page,
-            'pages': (total + per_page - 1) // per_page
-        })
-
-    except Exception as e:
-        logger.error(f"Search error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"folders": list_folder_names(), "trash_folder": find_trash_folder()})
+    except Exception as exc:
+        return jsonify({"folders": [], "trash_folder": "Trash", "warning": str(exc)})
 
 
-@app.route('/api/emails', methods=['GET'])
-def get_emails():
-    """Get emails from INBOX"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
-    folder = request.args.get('folder', 'INBOX')
-
-    try:
-        status, _ = mail_connection.select(folder)
-        if status != 'OK':
-            return jsonify({'error': f'Cannot access folder {folder}'}), 500
-
-        status, messages = mail_connection.search(None, 'ALL')
-
-        if status != 'OK':
-            return jsonify({'error': 'Failed to get messages'}), 500
-
-        email_ids = messages[0].split() if messages[0] else []
-        total = len(email_ids)
-
-        start = (page - 1) * per_page
-        end = start + per_page
-        page_ids = email_ids[start:end]
-
-        emails = []
-        for email_id in reversed(page_ids):
-            try:
-                status, msg_data = mail_connection.fetch(email_id, '(RFC822)')
-                if status == 'OK' and msg_data:
-                    raw_email = msg_data[0][1]
-                    msg = email.message_from_bytes(raw_email)
-
-                    subject = decode_email_header(msg.get('Subject', ''))
-                    sender = decode_email_header(msg.get('From', ''))
-                    date = msg.get('Date', '')
-                    message_id = email_id.decode()
-
-                    body = get_email_body(msg)
-                    snippet = body[:200] if body else '(No content)'
-
-                    urls = extract_urls(body)
-                    unsubscribe_links = find_unsubscribe_links(body, urls)
-
-                    emails.append({
-                        'id': message_id,
-                        'subject': subject,
-                        'sender': sender,
-                        'date': date,
-                        'snippet': snippet,
-                        'has_unsubscribe': len(unsubscribe_links) > 0,
-                        'unsubscribe_links': unsubscribe_links[:3]
-                    })
-            except Exception as e:
-                logger.warning(f"Error fetching email {email_id}: {e}")
-                continue
-
-        return jsonify({
-            'emails': emails,
-            'total': total,
-            'page': page,
-            'per_page': per_page,
-            'pages': (total + per_page - 1) // per_page,
-            'folder': folder
-        })
-
-    except Exception as e:
-        logger.error(f"Get emails error: {e}")
-        return jsonify({'error': str(e)}), 500
+@app.route("/api/search", methods=["POST"])
+def search():
+    if not require_connection():
+        return jsonify({"error": "Not connected"}), 401
+    data = request.get_json() or {}
+    limit = min(int(data.get("limit", 75)), 200)
+    criteria = []
+    if data.get("sender"):
+        criteria += ["FROM", f'"{data["sender"]}"']
+    if data.get("subject"):
+        criteria += ["SUBJECT", f'"{data["subject"]}"']
+    if data.get("query"):
+        criteria += ["TEXT", f'"{data["query"]}"']
+    if data.get("read_state") == "unread":
+        criteria.append("UNSEEN")
+    if data.get("read_state") == "read":
+        criteria.append("SEEN")
+    if data.get("before"):
+        criteria += ["BEFORE", datetime.strptime(data["before"], "%Y-%m-%d").strftime("%d-%b-%Y")]
+    if data.get("since"):
+        criteria += ["SINCE", datetime.strptime(data["since"], "%Y-%m-%d").strftime("%d-%b-%Y")]
+    if not criteria:
+        criteria = ["ALL"]
+    mail_connection.select("INBOX")
+    ids = list(reversed(search_ids(*criteria)))
+    emails = [item for msg_id in ids[:limit] if (item := summarize_email(msg_id, "Manual search"))]
+    return jsonify({"emails": emails, "total": len(ids), "shown": len(emails)})
 
 
-@app.route('/api/email/<email_id>', methods=['GET'])
-def get_email_detail(email_id):
-    """Get full email details"""
-    global mail_connection
+@app.route("/api/quick-pick/<name>")
+def quick_pick(name):
+    if not require_connection():
+        return jsonify({"error": "Not connected"}), 401
+    limit = min(request.args.get("limit", 75, type=int), 200)
+    mail_connection.select("INBOX")
+    ids = run_recipe(name)
+    if ids is None:
+        return jsonify({"error": f"Unknown quick-pick recipe: {name}"}), 400
+    ordered = ids if name.startswith("old_") else list(reversed(ids))
+    emails = [item for msg_id in ordered[:limit] if (item := summarize_email(msg_id, name.replace("_", " ")))]
+    return jsonify({"emails": emails, "total": len(ids), "shown": len(emails), "recipe": name})
 
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
 
-    try:
-        status, msg_data = mail_connection.fetch(email_id, '(RFC822)')
+@app.route("/api/quick-pick-counts")
+def quick_pick_counts():
+    if not require_connection():
+        return jsonify({"counts": {}}), 401
+    names = [
+        "verification_codes", "password_resets", "receipts", "shipping", "carts", "newsletters",
+        "promotions", "trials", "social", "noreply", "old_unread_1y", "old_unread_2y",
+        "old_read_2y", "old_read_5y", "old_promotions_6m", "old_receipts_2y"
+    ]
+    mail_connection.select("INBOX")
+    counts = {}
+    for name in names:
+        counts[name] = len(run_recipe(name) or [])
+    return jsonify({"counts": counts})
 
-        if status != 'OK':
-            return jsonify({'error': 'Failed to fetch email'}), 500
 
-        raw_email = msg_data[0][1]
-        msg = email.message_from_bytes(raw_email)
-
-        subject = decode_email_header(msg.get('Subject', ''))
-        sender = decode_email_header(msg.get('From', ''))
-        to = decode_email_header(msg.get('To', ''))
-        date = msg.get('Date', '')
-        message_id = msg.get('Message-ID', '')
-
-        body = get_email_body(msg)
-        urls = extract_urls(body)
-        unsubscribe_links = find_unsubscribe_links(body, urls)
-
-        # Parse sender domain
-        sender_domain = ''
-        if '<' in sender:
-            email_match = re.search(r'<([^>]+)>', sender)
-            if email_match:
-                sender_domain = email_match.group(1).split('@')[1] if '@' in email_match.group(1) else ''
+@app.route("/api/move-to-trash", methods=["POST"])
+def move_selected_to_trash():
+    if not require_connection():
+        return jsonify({"error": "Not connected"}), 401
+    ids = (request.get_json() or {}).get("email_ids", [])
+    if not ids:
+        return jsonify({"error": "No messages selected"}), 400
+    mail_connection.select("INBOX")
+    moved = 0
+    failed = []
+    folder = find_trash_folder()
+    for msg_id in ids:
+        ok, folder, err = move_to_trash(msg_id)
+        if ok:
+            moved += 1
         else:
-            parts = sender.split('@')
-            if len(parts) > 1:
-                sender_domain = parts[1]
-
-        category = categorize_email(sender_domain, subject, len(unsubscribe_links) > 0)
-
-        return jsonify({
-            'id': email_id,
-            'subject': subject,
-            'sender': sender,
-            'to': to,
-            'date': date,
-            'message_id': message_id,
-            'body': body,
-            'urls': urls,
-            'unsubscribe_links': unsubscribe_links,
-            'category': category,
-            'sender_domain': sender_domain
-        })
-
-    except Exception as e:
-        logger.error(f"Email detail error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/delete', methods=['POST'])
-def delete_emails():
-    """Delete selected emails"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    data = request.get_json()
-    email_ids = data.get('email_ids', [])
-    permanent = data.get('permanent', False)
-
-    if not email_ids:
-        return jsonify({'error': 'No emails selected'}), 400
-
-    try:
-        deleted = 0
-        for email_id in email_ids:
-            if permanent:
-                # Move to trash first, then permanently delete
-                mail_connection.store(email_id, '+FLAGS', '\\Deleted')
-            else:
-                # Move to trash
-                mail_connection.move(email_id, 'INBOX/Trash')
-            deleted += 1
-
-        if permanent:
-            mail_connection.expunge()
-
-        return jsonify({
-            'success': True,
-            'deleted': deleted,
-            'message': f'{deleted} email(s) deleted'
-        })
-
-    except Exception as e:
-        logger.error(f"Delete error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/unsubscribe', methods=['POST'])
-def unsubscribe():
-    """Mark emails from sender for deletion (simulated unsubscribe)"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    data = request.get_json()
-    sender = data.get('sender', '')
-    delete_all = data.get('delete_all', True)
-
-    if not sender:
-        return jsonify({'error': 'Sender required'}), 400
-
-    try:
-        # Search for emails from this sender
-        search_query = f'FROM "{sender}"'
-        status, messages = mail_connection.search(None, search_query)
-
-        if status != 'OK':
-            return jsonify({'error': 'Search failed'}), 500
-
-        email_ids = messages[0].split() if messages[0] else []
-        count = len(email_ids)
-
-        # Move to trash
-        deleted = 0
-        for email_id in email_ids:
-            try:
-                mail_connection.move(email_id, 'INBOX/Trash')
-                deleted += 1
-            except:
-                pass
-
-        return jsonify({
-            'success': True,
-            'deleted': deleted,
-            'message': f'Unsubscribed from {sender}. {deleted} email(s) moved to trash.'
-        })
-
-    except Exception as e:
-        logger.error(f"Unsubscribe error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    """Get email statistics"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    try:
-        # Get total INBOX count
-        status, messages = mail_connection.search(None, 'ALL')
-        total_emails = len(messages[0].split()) if messages[0] else 0
-
-        # Get unread count
-        status, unread = mail_connection.search(None, 'UNSEEN')
-        unread_count = len(unread[0].split()) if unread[0] else 0
-
-        # Sample emails for category analysis (first 50)
-        status, messages = mail_connection.search(None, 'ALL')
-        email_ids = messages[0].split()[:50] if messages[0] else []
-
-        categories = {'social': 0, 'job': 0, 'shopping': 0, 'newsletter': 0, 'marketing': 0, 'other': 0}
-        top_senders = {}
-
-        for email_id in email_ids:
-            try:
-                status, msg_data = mail_connection.fetch(email_id, '(RFC822)')
-                if status == 'OK' and msg_data:
-                    msg = email.message_from_bytes(msg_data[0][1])
-                    sender = decode_email_header(msg.get('From', ''))
-                    subject = decode_email_header(msg.get('Subject', ''))
-
-                    # Count by sender
-                    if sender in top_senders:
-                        top_senders[sender] += 1
-                    else:
-                        top_senders[sender] = 1
-
-                    # Categorize
-                    body = get_email_body(msg)
-                    urls = extract_urls(body)
-                    unsubscribe_links = find_unsubscribe_links(body, urls)
-
-                    # Parse sender domain
-                    sender_domain = ''
-                    if '<' in sender:
-                        email_match = re.search(r'<([^>]+)>', sender)
-                        if email_match:
-                            sender_domain = email_match.group(1).split('@')[1] if '@' in email_match.group(1) else ''
-
-                    category = categorize_email(sender_domain, subject, len(unsubscribe_links) > 0)
-                    categories[category] = categories.get(category, 0) + 1
-            except:
-                continue
-
-        # Sort top senders
-        top_senders = sorted(top_senders.items(), key=lambda x: x[1], reverse=True)[:10]
-
-        return jsonify({
-            'total_emails': total_emails,
-            'unread_count': unread_count,
-            'categories': categories,
-            'top_senders': [{'sender': s[0], 'count': s[1]} for s in top_senders]
-        })
-
-    except Exception as e:
-        logger.error(f"Stats error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-# Smart Cleanup Search endpoint
-@app.route('/api/search/cleanup', methods=['GET'])
-def search_cleanup():
-    """Search for specific cleanup categories using Yahoo Mail operators"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    cleanup_type = request.args.get('type', '')
-    limit = request.args.get('limit', 50, type=int)
-
-    try:
-        mail_connection.select('INBOX')
-
-        # Calculate date filters for IMAP (DD-Mon-YYYY format required)
-        now = datetime.now()
-        date_ranges = {
-            '1y': (now.replace(year=now.year - 1)).strftime('%d-%b-%Y'),
-            '2y': (now.replace(year=now.year - 2)).strftime('%d-%b-%Y'),
-            '3y': (now.replace(year=now.year - 3)).strftime('%d-%b-%Y'),
-            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%d-%b-%Y'),
-            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
-        }
-
-        # IMAP search combinations - simplified without OR clauses for Yahoo compatibility
-        # Yahoo IMAP may not support OR in searches, so using single keywords
-        # OLD_UNREAD_2Y: Combined unread + old date
-        cleanup_searches = {
-            'verification_codes': 'SUBJECT "verification"',
-            'password_reset': 'SUBJECT "password"',
-            'shipping': 'SUBJECT "ship"',
-            'receipts': 'SUBJECT "receipt"',
-            'cart': 'SUBJECT "cart"',
-            'newsletters': 'SUBJECT "newsletter"',
-            'promotions': 'SUBJECT "sale"',
-            'expired_trials': 'SUBJECT "trial"',
-            'social': 'SUBJECT "follower"',
-            'comment_alerts': 'SUBJECT "comment"',
-            'old_unread': 'UNSEEN',
-            'old_read': 'SEEN',  # Previously read emails
-            'old_unread_2y': f'UNSEEN BEFORE {date_ranges["2y"]}',  # Unread over 2 years old
-            'auto_confirmations': 'SUBJECT "confirm"',
-            'attachments_old': 'ALL',
-            'noreply': 'FROM "noreply"',
-            'security': 'SUBJECT "security"',
-            'travel': 'SUBJECT "reservation"',
-            'jobs': 'SUBJECT "job"',
-            'sales': 'SUBJECT "sale"',
-            'spam': 'SUBJECT "winner"',
-        }
-
-        if cleanup_type not in cleanup_searches:
-            return jsonify({'error': f'Unknown cleanup type: {cleanup_type}'}), 400
-
-        search_criteria = cleanup_searches[cleanup_type]
-
-        # Log the search for debugging
-        logger.info(f"Cleanup search for '{cleanup_type}': {search_criteria}")
-
-        # Split criteria into individual arguments for IMAP search
-        # Using standard IMAP argument format
-        search_args = search_criteria.split()
-        status, messages = mail_connection.search(None, *search_args)
-
-        if status != 'OK':
-            logger.warning(f"Search failed for {cleanup_type} - status: {status}")
-            return jsonify({'emails': [], 'total': 0, 'type': cleanup_type})
-
-        email_ids = messages[0].split() if messages[0] else []
-
-        # old_unread and old_read search ALL emails - keep in original order
-        if cleanup_type in ['old_unread', 'old_read', 'old_unread_2y']:
-            pass  # Keep UNSEEN/BEFORE order - oldest first for cleanup
-        else:
-            email_ids = list(reversed(email_ids))  # Most recent first for keyword searches
-
-        # Limit results
-        email_ids = email_ids[:limit]
-
-        emails = []
-        for email_id in email_ids:
-            try:
-                status, msg_data = mail_connection.fetch(email_id, '(RFC822)')
-                if status == 'OK' and msg_data:
-                    raw_email = msg_data[0][1]
-                    msg = email.message_from_bytes(raw_email)
-
-                    subject = decode_email_header(msg.get('Subject', ''))
-                    sender = decode_email_header(msg.get('From', ''))
-                    date = msg.get('Date', '')
-                    message_id = email_id.decode()
-
-                    body = get_email_body(msg)
-                    snippet = body[:200] if body else '(No content)'
-
-                    urls = extract_urls(body)
-                    unsubscribe_links = find_unsubscribe_links(body, urls)
-
-                    emails.append({
-                        'id': message_id,
-                        'subject': subject,
-                        'sender': sender,
-                        'date': date,
-                        'snippet': snippet,
-                        'has_unsubscribe': len(unsubscribe_links) > 0,
-                        'unsubscribe_links': unsubscribe_links[:3],
-                        'category': cleanup_type
-                    })
-            except Exception as e:
-                logger.warning(f"Error fetching email {email_id}: {e}")
-                continue
-
-        return jsonify({
-            'emails': emails,
-            'total': len(emails),
-            'type': cleanup_type
-        })
-
-    except Exception as e:
-        logger.error(f"Cleanup search error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-# Count endpoint for cleanup categories
-@app.route('/api/search/cleanup/count', methods=['GET'])
-def search_cleanup_count():
-    """Quick count of emails in cleanup category"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'counts': {}}), 401
-
-    try:
-        mail_connection.select('INBOX')
-        now = datetime.now()
-        date_ranges = {
-            '1y': (now.replace(year=now.year - 1)).strftime('%d-%b-%Y'),
-            '2y': (now.replace(year=now.year - 2)).strftime('%d-%b-%Y'),
-            '3y': (now.replace(year=now.year - 3)).strftime('%d-%b-%Y'),
-            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%d-%b-%Y'),
-            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
-        }
-
-        counts = {}
-        searches = [
-            ('verification_codes', 'SUBJECT "verification"'),
-            ('password_reset', 'SUBJECT "password"'),
-            ('shipping', 'SUBJECT "ship"'),
-            ('receipts', 'SUBJECT "receipt"'),
-            ('newsletters', 'SUBJECT "newsletter"'),
-            ('promotions', 'SUBJECT "sale"'),
-            ('expired_trials', 'SUBJECT "trial"'),
-            ('social', 'SUBJECT "follower"'),
-            ('old_unread', 'UNSEEN'),
-            ('old_read', 'SEEN'),  # Previously read emails
-            ('old_unread_2y', f'UNSEEN BEFORE {date_ranges["2y"]}'),  # Unread over 2 years old
-            ('auto_confirmations', 'SUBJECT "confirm"'),
-        ]
-
-        for name, criteria in searches:
-            try:
-                logger.info(f"Count search '{name}': {criteria}")
-                search_args = criteria.split()
-                status, messages = mail_connection.search(None, *search_args)
-                if status == 'OK' and messages[0]:
-                    counts[name] = len(messages[0].split())
-                else:
-                    counts[name] = 0
-            except Exception as e:
-                logger.warning(f"Count search error for {name}: {e}")
-                counts[name] = 0
-
-        return jsonify({'counts': counts})
-
-    except Exception as e:
-        logger.error(f"Count error: {e}")
-        return jsonify({'counts': {}}), 500
-
-
-@app.route('/api/folders', methods=['GET'])
-def get_folders():
-    """Get list of folders"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    try:
-        status, folders = mail_connection.list()
-
-        folder_list = []
-        if status == 'OK':
-            for folder in folders:
-                # Parse folder info
-                folder_data = folder.decode().split(' "/" ')
-                if len(folder_data) == 2:
-                    folder_list.append(folder_data[1].strip('"'))
-
-        return jsonify({'folders': folder_list})
-
-    except Exception as e:
-        logger.error(f"Folders error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-# ========== EMAIL TRIAGE ENDPOINTS ==========
-
-from triage import EmailTriageExporter, EmailCommandExecutor, EMAIL_TRIAGE_SYSTEM_PROMPT
-
-
-@app.route('/api/triage/batch', methods=['GET'])
-def get_triage_batch():
-    """Get a batch of emails formatted for AI triage analysis"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    start = request.args.get('start', 0, type=int)
-    limit = request.args.get('limit', 20, type=int)
-
-    try:
-        exporter = EmailTriageExporter(mail_connection)
-        batch_data = exporter.export_batch(start=start, limit=limit)
-
-        if not batch_data:
-            return jsonify({'error': 'Failed to export batch'}), 500
-
-        formatted_text = exporter.format_for_ai(batch_data)
-
-        return jsonify({
-            'success': True,
-            'batch': batch_data,
-            'formatted_text': formatted_text,
-            'system_prompt': EMAIL_TRIAGE_SYSTEM_PROMPT
-        })
-
-    except Exception as e:
-        logger.error(f"Triage batch error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/triage/execute', methods=['POST'])
-def execute_triage_commands():
-    """Execute JSON commands generated by AI triage analysis"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    data = request.get_json()
-    commands = data.get('commands', [])
-
-    if not commands:
-        return jsonify({'error': 'No commands provided'}), 400
-
-    try:
-        executor = EmailCommandExecutor(mail_connection)
-        result = executor.execute_commands(commands)
-
-        return jsonify(result)
-
-    except Exception as e:
-        logger.error(f"Execute commands error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/triage/system-prompt', methods=['GET'])
-def get_system_prompt():
-    """Get the email triage system prompt for context"""
+            failed.append({"id": msg_id, "error": err})
     return jsonify({
-        'system_prompt': EMAIL_TRIAGE_SYSTEM_PROMPT,
-        'instructions': """
-This system prompt helps you analyze email batches. When you receive a batch:
-
-1. Review each email and assign:
-   - Urgency: High/Medium/Low/None
-   - Category: Action Required, Newsletter, Reference, Junk, Urgent
-   - Action: Delete, Unsubscribe, Move to Folder:X, Archive
-
-2. Always output a Markdown table with your analysis
-
-3. After user approval, output JSON commands:
-   ```json
-   [
-     {"id": "EMAIL_ID", "action": "delete"},
-     {"id": "EMAIL_ID", "action": "move", "destination": "Newsletters"},
-     {"id": "EMAIL_ID", "action": "unsubscribe", "sender": "newsletter@example.com", "unsubscribe_url": "https://..."}
-   ]
-   ```
-"""
+        "success": len(failed) == 0,
+        "moved": moved,
+        "deleted": moved,
+        "failed": failed,
+        "trash_folder": folder,
+        "message": f"Moved {moved} message(s) to {folder}. Review them in Yahoo before emptying Trash."
     })
 
 
-# ========== TRUE UNSUBSCRIBE ENDPOINTS ==========
-
-from unsubscribe_service import UnsubscribeService, find_unsubscribe_url, attempt_unsubscribe
-
-
-@app.route('/api/unsubscribe/find-url', methods=['POST'])
-def find_unsubscribe_url_endpoint():
-    """Find unsubscribe URL from an email"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    data = request.get_json()
-    email_id = data.get('email_id')
-
-    if not email_id:
-        return jsonify({'error': 'Email ID required'}), 400
-
-    try:
-        # Fetch email content
-        status, msg_data = mail_connection.fetch(email_id, '(RFC822)')
-        if status != 'OK':
-            return jsonify({'error': 'Failed to fetch email'}), 500
-
-        import email as email_lib
-        msg = email_lib.message_from_bytes(msg_data[0][1])
-
-        # Get body text
-        body = b''
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == 'text/plain':
-                    payload = part.get_payload(decode=True)
-                    charset = part.get_content_charset() or 'utf-8'
-                    body = payload.decode(charset, errors='replace')
-                    break
-        else:
-            payload = msg.get_payload(decode=True)
-            charset = msg.get_content_charset() or 'utf-8'
-            body = payload.decode(charset, errors='replace')
-
-        # Find unsubscribe URL
-        url = find_unsubscribe_url(body)
-
-        return jsonify({
-            'success': True,
-            'email_id': email_id,
-            'unsubscribe_url': url,
-            'found': url is not None
-        })
-
-    except Exception as e:
-        logger.error(f"Find unsubscribe URL error: {e}")
-        return jsonify({'error': str(e)}), 500
+@app.route("/api/delete", methods=["POST"])
+def legacy_delete_alias():
+    return move_selected_to_trash()
 
 
-@app.route('/api/unsubscribe/visit', methods=['POST'])
-def visit_unsubscribe_url():
-    """Visit an unsubscribe URL to complete opt-out"""
-    data = request.get_json()
-    url = data.get('url')
-    email_id = data.get('email_id')
-
-    if not url:
-        return jsonify({'error': 'URL required'}), 400
-
-    try:
-        result = attempt_unsubscribe(url, email_id)
-
-        return jsonify({
-            'success': True,
-            'result': result
-        })
-
-    except Exception as e:
-        logger.error(f"Unsubscribe visit error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/unsubscribe/full', methods=['POST'])
-def full_unsubscribe():
-    """Complete unsubscribe: find URL, visit it, delete emails from sender"""
-    global mail_connection
-
-    if mail_connection is None:
-        return jsonify({'error': 'Not connected'}), 401
-
-    data = request.get_json()
-    sender = data.get('sender')
-    email_id = data.get('email_id')
-    unsubscribe_url = data.get('unsubscribe_url')
-
-    if not sender:
-        return jsonify({'error': 'Sender required'}), 400
-
-    try:
-        service = UnsubscribeService(mail_connection)
-
-        # If no URL provided, try to find it
-        if not unsubscribe_url and email_id:
-            status, msg_data = mail_connection.fetch(email_id, '(RFC822)')
-            if status == 'OK':
-                import email as email_lib
-                msg = email_lib.message_from_bytes(msg_data[0][1])
-                body = ''
-                if msg.is_multipart():
-                    for part in msg.walk():
-                        if part.get_content_type() == 'text/plain':
-                            payload = part.get_payload(decode=True)
-                            charset = part.get_content_charset() or 'utf-8'
-                            body = payload.decode(charset, errors='replace')
-                            break
-                else:
-                    payload = msg.get_payload(decode=True)
-                    charset = msg.get_content_charset() or 'utf-8'
-                    body = payload.decode(charset, errors='replace')
-                unsubscribe_url = find_unsubscribe_url(body)
-
-        result = service.full_unsubscribe(sender=sender, unsubscribe_url=unsubscribe_url)
-
-        return jsonify({
-            'success': True,
-            'result': result
-        })
-
-    except Exception as e:
-        logger.error(f"Full unsubscribe error: {e}")
-        return jsonify({'error': str(e)}), 500
+@app.route("/api/top-senders")
+def top_senders():
+    if not require_connection():
+        return jsonify({"error": "Not connected"}), 401
+    limit = min(request.args.get("sample", 500, type=int), 2000)
+    mail_connection.select("INBOX")
+    ids = list(reversed(search_ids("ALL")))[:limit]
+    senders = {}
+    for msg_id in ids:
+        try:
+            status, data = mail_connection.fetch(msg_id, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
+            if status != "OK" or not data:
+                continue
+            msg = email.message_from_bytes(data[0][1])
+            sender = decode_email_header(msg.get("From", "Unknown"))
+            key = sender_domain(sender) or sender
+            if key not in senders:
+                senders[key] = {"sender": sender, "domain": key, "count": 0, "samples": []}
+            senders[key]["count"] += 1
+            if len(senders[key]["samples"]) < 3:
+                senders[key]["samples"].append(decode_email_header(msg.get("Subject", "")))
+        except Exception:
+            continue
+    ranked = sorted(senders.values(), key=lambda x: x["count"], reverse=True)[:50]
+    return jsonify({"senders": ranked, "sampled": len(ids)})
 
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+@app.route("/api/sender/<path:value>")
+def sender_messages(value):
+    if not require_connection():
+        return jsonify({"error": "Not connected"}), 401
+    limit = min(request.args.get("limit", 75, type=int), 200)
+    mail_connection.select("INBOX")
+    ids = list(reversed(search_ids("FROM", f'"{value}"')))
+    emails = [item for msg_id in ids[:limit] if (item := summarize_email(msg_id, f"From {value}"))]
+    return jsonify({"emails": emails, "total": len(ids), "shown": len(emails), "sender": value})
+
+
+@app.route("/api/unsubscribe-finder")
+def unsubscribe_finder():
+    if not require_connection():
+        return jsonify({"error": "Not connected"}), 401
+    sample = min(request.args.get("sample", 200, type=int), 1000)
+    mail_connection.select("INBOX")
+    ids = list(reversed(search_ids("ALL")))[:sample]
+    grouped = {}
+    for msg_id in ids:
+        try:
+            summary = summarize_email(msg_id, "unsubscribe finder")
+            if not summary or not summary["unsubscribe_links"]:
+                continue
+            key = summary["sender_domain"] or summary["sender"]
+            if key not in grouped:
+                grouped[key] = {"sender": summary["sender"], "domain": key, "count": 0, "links": [], "samples": []}
+            grouped[key]["count"] += 1
+            grouped[key]["links"].extend(summary["unsubscribe_links"])
+            if len(grouped[key]["samples"]) < 3:
+                grouped[key]["samples"].append({"id": summary["id"], "subject": summary["subject"], "date": summary["date"]})
+        except Exception:
+            continue
+    results = []
+    for item in grouped.values():
+        item["links"] = list(dict.fromkeys(item["links"]))[:3]
+        results.append(item)
+    results.sort(key=lambda x: x["count"], reverse=True)
+    return jsonify({"groups": results[:50], "sampled": len(ids)})
+
+
+@app.route("/api/stats")
+def stats():
+    if not require_connection():
+        return jsonify({"error": "Not connected"}), 401
+    mail_connection.select("INBOX")
+    return jsonify({
+        "total_emails": len(search_ids("ALL")),
+        "unread_count": len(search_ids("UNSEEN")),
+        "trash_folder": find_trash_folder(),
+    })
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG") == "1")
