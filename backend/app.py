@@ -618,7 +618,6 @@ def search_cleanup():
 
     cleanup_type = request.args.get('type', '')
     limit = request.args.get('limit', 50, type=int)
-    older_than = request.args.get('older_than', '')
 
     try:
         mail_connection.select('INBOX')
@@ -632,82 +631,44 @@ def search_cleanup():
             '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
         }
 
-        # Map cleanup types to IMAP search criteria
+        # Map cleanup types to simpler IMAP search criteria
         cleanup_searches = {
-            'verification_codes': {
-                'criteria': '(OR SUBJECT "code" OR SUBJECT "verification" OR SUBJECT "confirm your" OR SUBJECT "verify" OR SUBJECT "OTP" OR SUBJECT "one-time" OR SUBJECT "login code" OR SUBJECT "authentication") SINCE ' + date_ranges['6m'],
-                'older_than': ''
-            },
-            'password_reset': {
-                'criteria': '(OR SUBJECT "password reset" OR SUBJECT "reset your password" OR SUBJECT "change your password" OR SUBJECT "forgot password" OR SUBJECT "reset password") SINCE ' + date_ranges['1y'],
-                'older_than': ''
-            },
-            'shipping': {
-                'criteria': '(OR SUBJECT "shipped" OR SUBJECT "out for delivery" OR SUBJECT "tracking" OR SUBJECT "delivered" OR SUBJECT "package" OR SUBJECT "delivery update") SINCE ' + date_ranges['1m'],
-                'older_than': ''
-            },
-            'receipts': {
-                'criteria': '(OR SUBJECT "receipt" OR SUBJECT "order confirmed" OR SUBJECT "purchase" OR SUBJECT "transaction" OR SUBJECT "invoice") SINCE ' + date_ranges['1y'],
-                'older_than': ''
-            },
-            'cart': {
-                'criteria': '(OR SUBJECT "abandoned cart" OR SUBJECT "left something" OR SUBJECT "complete your purchase" OR SUBJECT "still interested" OR SUBJECT "cart reminder") SINCE ' + date_ranges['6m'],
-                'older_than': ''
-            },
-            'newsletters': {
-                'criteria': '(OR SUBJECT "newsletter" OR SUBJECT "digest" OR SUBJECT "weekly update" OR SUBJECT "monthly update" OR SUBJECT "latest news") SINCE ' + date_ranges['6m'],
-                'older_than': ''
-            },
-            'promotions': {
-                'criteria': '(OR SUBJECT "sale" OR SUBJECT "limited time" OR SUBJECT "deal" OR SUBJECT "offer" OR SUBJECT "save" OR SUBJECT "clearance" OR SUBJECT "discount") SINCE ' + date_ranges['6m'],
-                'older_than': ''
-            },
-            'expired_trials': {
-                'criteria': '(OR SUBJECT "trial expired" OR SUBJECT "trial ending" OR SUBJECT "upgrade now" OR SUBJECT "trial ended" OR SUBJECT "subscribe now") SINCE ' + date_ranges['6m'],
-                'older_than': ''
-            },
-            'social': {
-                'criteria': '(OR SUBJECT "followers" OR SUBJECT "liked" OR SUBJECT "commented" OR SUBJECT "new follower" OR SUBJECT "social" OR SUBJECT "connection request") SINCE ' + date_ranges['6m'],
-                'older_than': ''
-            },
-            'comment_alerts': {
-                'criteria': '(OR SUBJECT "comment" OR SUBJECT "replied" OR SUBJECT "mentioned" OR SUBJECT "notification" OR SUBJECT "activity on") SINCE ' + date_ranges['6m'],
-                'older_than': ''
-            },
-            'old_unread': {
-                'criteria': 'UNSEEN',
-                'older_than': date_ranges['1y']
-            },
-            'old_read': {
-                'criteria': 'SEEN',
-                'older_than': date_ranges['2y']
-            },
-            'auto_confirmations': {
-                'criteria': '(OR SUBJECT "confirmation" OR SUBJECT "confirm" OR SUBJECT "confirmed" OR SUBJECT "automated" OR SUBJECT "system") SINCE ' + date_ranges['1y'],
-                'older_than': ''
-            },
-            'old_newsletters': {
-                'criteria': '(OR SUBJECT "newsletter" OR SUBJECT "digest" OR SUBJECT "subscribe" OR SUBJECT "unsubscribe")',
-                'older_than': date_ranges['6m']
-            }
+            'verification_codes': 'SUBJECT "code" SINCE ' + date_ranges['6m'],
+            'password_reset': 'SUBJECT "password" SINCE ' + date_ranges['1y'],
+            'shipping': 'SUBJECT "ship" SINCE ' + date_ranges['1m'],
+            'receipts': 'SUBJECT "receipt" SINCE ' + date_ranges['1y'],
+            'cart': 'SUBJECT "cart" SINCE ' + date_ranges['6m'],
+            'newsletters': 'SUBJECT "newsletter" SINCE ' + date_ranges['6m'],
+            'promotions': 'SUBJECT "sale" SINCE ' + date_ranges['6m'],
+            'expired_trials': 'SUBJECT "trial" SINCE ' + date_ranges['6m'],
+            'social': 'SUBJECT "follower" SINCE ' + date_ranges['6m'],
+            'comment_alerts': 'SUBJECT "comment" SINCE ' + date_ranges['6m'],
+            'old_unread': 'UNSEEN',
+            'old_read': 'SEEN',
+            'auto_confirmations': 'SUBJECT "confirm" SINCE ' + date_ranges['1y'],
         }
 
         if cleanup_type not in cleanup_searches:
             return jsonify({'error': f'Unknown cleanup type: {cleanup_type}'}), 400
 
-        search_config = cleanup_searches[cleanup_type]
-        search_criteria = search_config['criteria']
+        search_criteria = cleanup_searches[cleanup_type]
 
-        # Add older_than date filter if specified
-        if search_config['older_than']:
-            search_criteria = f'{search_criteria} BEFORE {search_config["older_than"]}'
+        # For old_unread/old_read, add date constraint
+        if cleanup_type == 'old_unread':
+            search_criteria = f'UNSEEN BEFORE {date_ranges["1y"]}'
+        elif cleanup_type == 'old_read':
+            search_criteria = f'SEEN BEFORE {date_ranges["2y"]}'
 
         status, messages = mail_connection.search(None, search_criteria)
 
         if status != 'OK':
-            return jsonify({'error': 'Search failed', 'details': str(status)}), 500
+            return jsonify({'emails': [], 'total': 0, 'type': cleanup_type})
 
         email_ids = messages[0].split() if messages[0] else []
+
+        # For date-based searches, get most recent first (reverse order)
+        if cleanup_type not in ['old_unread', 'old_read']:
+            email_ids = list(reversed(email_ids))
 
         # Limit results
         email_ids = email_ids[:limit]
@@ -754,6 +715,57 @@ def search_cleanup():
     except Exception as e:
         logger.error(f"Cleanup search error: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+# Count endpoint for cleanup categories
+@app.route('/api/search/cleanup/count', methods=['GET'])
+def search_cleanup_count():
+    """Quick count of emails in cleanup category"""
+    global mail_connection
+
+    if mail_connection is None:
+        return jsonify({'counts': {}}), 401
+
+    try:
+        mail_connection.select('INBOX')
+        now = datetime.now()
+        date_ranges = {
+            '1y': (now.replace(year=now.year - 1)).strftime('%d-%b-%Y'),
+            '2y': (now.replace(year=now.year - 2)).strftime('%d-%b-%Y'),
+            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%d-%b-%Y'),
+            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
+        }
+
+        counts = {}
+        searches = [
+            ('verification_codes', f'SUBJECT "code" SINCE {date_ranges["6m"]}'),
+            ('password_reset', f'SUBJECT "password" SINCE {date_ranges["1y"]}'),
+            ('shipping', f'SUBJECT "ship" SINCE {date_ranges["1m"]}'),
+            ('receipts', f'SUBJECT "receipt" SINCE {date_ranges["1y"]}'),
+            ('newsletters', f'SUBJECT "newsletter" SINCE {date_ranges["6m"]}'),
+            ('promotions', f'SUBJECT "sale" SINCE {date_ranges["6m"]}'),
+            ('expired_trials', f'SUBJECT "trial" SINCE {date_ranges["6m"]}'),
+            ('social', f'SUBJECT "follower" SINCE {date_ranges["6m"]}'),
+            ('old_unread', f'UNSEEN BEFORE {date_ranges["1y"]}'),
+            ('old_read', f'SEEN BEFORE {date_ranges["2y"]}'),
+            ('auto_confirmations', f'SUBJECT "confirm" SINCE {date_ranges["1y"]}'),
+        ]
+
+        for name, criteria in searches:
+            try:
+                status, messages = mail_connection.search(None, criteria)
+                if status == 'OK' and messages[0]:
+                    counts[name] = len(messages[0].split())
+                else:
+                    counts[name] = 0
+            except:
+                counts[name] = 0
+
+        return jsonify({'counts': counts})
+
+    except Exception as e:
+        logger.error(f"Count error: {e}")
+        return jsonify({'counts': {}}), 500
 
 
 @app.route('/api/folders', methods=['GET'])
