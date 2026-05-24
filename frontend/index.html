@@ -387,6 +387,11 @@ Example:
     <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
 
     <script>
+        // API Base URL - update this to your Railway backend URL
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? ''  // Use relative paths when running locally
+            : 'YOUR_RAILWAY_URL';  // Replace with your Railway URL (e.g., https://your-app.up.railway.app)
+
         // State Management
         const state = {
             connected: false,
@@ -405,7 +410,7 @@ Example:
         // API Helper
         const api = {
             async connect(email, password) {
-                const res = await fetch('/api/connect', {
+                const res = await fetch(`${API_BASE}/api/connect`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
@@ -413,15 +418,15 @@ Example:
                 return res.json();
             },
             async status() {
-                const res = await fetch('/api/status');
+                const res = await fetch(`${API_BASE}/api/status`);
                 return res.json();
             },
             async disconnect() {
-                const res = await fetch('/api/disconnect', { method: 'POST' });
+                const res = await fetch(`${API_BASE}/api/disconnect`, { method: 'POST' });
                 return res.json();
             },
             async search(params) {
-                const res = await fetch('/api/search', {
+                const res = await fetch(`${API_BASE}/api/search`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ...params, page: state.currentPage, per_page: state.perPage })
@@ -429,11 +434,11 @@ Example:
                 return res.json();
             },
             async getEmail(id) {
-                const res = await fetch(`/api/email/${id}`);
+                const res = await fetch(`${API_BASE}/api/email/${id}`);
                 return res.json();
             },
             async deleteEmails(ids, permanent = false) {
-                const res = await fetch('/api/delete', {
+                const res = await fetch(`${API_BASE}/api/delete`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email_ids: ids, permanent })
@@ -441,7 +446,7 @@ Example:
                 return res.json();
             },
             async unsubscribe(sender) {
-                const res = await fetch('/api/unsubscribe', {
+                const res = await fetch(`${API_BASE}/api/unsubscribe`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sender })
@@ -449,15 +454,15 @@ Example:
                 return res.json();
             },
             async getStats() {
-                const res = await fetch('/api/stats');
+                const res = await fetch(`${API_BASE}/api/stats`);
                 return res.json();
             },
             async getTriageBatch(start, limit) {
-                const res = await fetch(`/api/triage/batch?start=${start}&limit=${limit}`);
+                const res = await fetch(`${API_BASE}/api/triage/batch?start=${start}&limit=${limit}`);
                 return res.json();
             },
             async executeTriageCommands(commands) {
-                const res = await fetch('/api/triage/execute', {
+                const res = await fetch(`${API_BASE}/api/triage/execute`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ commands })
@@ -465,7 +470,7 @@ Example:
                 return res.json();
             },
             async findUnsubscribeUrl(emailId) {
-                const res = await fetch('/api/unsubscribe/find-url', {
+                const res = await fetch(`${API_BASE}/api/unsubscribe/find-url`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email_id: emailId })
@@ -473,7 +478,7 @@ Example:
                 return res.json();
             },
             async visitUnsubscribeUrl(url, emailId) {
-                const res = await fetch('/api/unsubscribe/visit', {
+                const res = await fetch(`${API_BASE}/api/unsubscribe/visit`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url, email_id: emailId })
@@ -481,7 +486,7 @@ Example:
                 return res.json();
             },
             async fullUnsubscribe(sender, emailId, unsubscribeUrl) {
-                const res = await fetch('/api/unsubscribe/full', {
+                const res = await fetch(`${API_BASE}/api/unsubscribe/full`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sender, email_id: emailId, unsubscribe_url: unsubscribeUrl })
