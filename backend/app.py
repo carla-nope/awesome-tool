@@ -632,28 +632,29 @@ def search_cleanup():
             '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
         }
 
-        # IMAP search combinations using standard IMAP syntax
+        # IMAP search combinations - simplified without date filters first
+        # Will add back date filters if these basic searches work
         cleanup_searches = {
-            'verification_codes': f'SUBJECT "verification" BEFORE {date_ranges["6m"]}',
-            'password_reset': f'SUBJECT "password" BEFORE {date_ranges["1y"]}',
-            'shipping': f'SUBJECT "tracking" BEFORE {date_ranges["1m"]}',
-            'receipts': f'SUBJECT "receipt" BEFORE {date_ranges["1y"]}',
-            'cart': f'SUBJECT "cart" OR SUBJECT "purchase" BEFORE {date_ranges["6m"]}',
-            'newsletters': f'SUBJECT "newsletter" BEFORE {date_ranges["6m"]}',
-            'promotions': f'SUBJECT "sale" OR SUBJECT "offer" BEFORE {date_ranges["6m"]}',
-            'expired_trials': f'SUBJECT "trial" BEFORE {date_ranges["6m"]}',
-            'social': f'SUBJECT "follower" OR SUBJECT "liked" BEFORE {date_ranges["6m"]}',
-            'comment_alerts': f'SUBJECT "comment" BEFORE {date_ranges["6m"]}',
-            'old_unread': f'UNSEEN BEFORE {date_ranges["1y"]}',
-            'old_read': f'SEEN BEFORE {date_ranges["2y"]}',
-            'auto_confirmations': f'SUBJECT "confirmation" BEFORE {date_ranges["1y"]}',
-            'attachments_old': f'ALL BEFORE {date_ranges["2y"]}',
-            'noreply': f'FROM "noreply" BEFORE {date_ranges["1y"]}',
-            'security': f'SUBJECT "security" BEFORE {date_ranges["1y"]}',
-            'travel': f'SUBJECT "reservation" BEFORE {date_ranges["1y"]}',
-            'jobs': f'SUBJECT "job" BEFORE {date_ranges["6m"]}',
-            'sales': f'SUBJECT "sales" BEFORE {date_ranges["6m"]}',
-            'spam': f'SUBJECT "winner" BEFORE {date_ranges["6m"]}',
+            'verification_codes': 'SUBJECT "verification" OR SUBJECT "code" OR SUBJECT "OTP"',
+            'password_reset': 'SUBJECT "password" OR SUBJECT "reset"',
+            'shipping': 'SUBJECT "ship" OR SUBJECT "tracking" OR SUBJECT "deliver"',
+            'receipts': 'SUBJECT "receipt" OR SUBJECT "order confirmation"',
+            'cart': 'SUBJECT "cart" OR SUBJECT "abandon" OR SUBJECT "purchase"',
+            'newsletters': 'SUBJECT "newsletter" OR SUBJECT "digest" OR SUBJECT "update"',
+            'promotions': 'SUBJECT "sale" OR SUBJECT "offer" OR SUBJECT "deal"',
+            'expired_trials': 'SUBJECT "trial" OR SUBJECT "expired" OR SUBJECT "upgrade"',
+            'social': 'SUBJECT "follower" OR SUBJECT "liked" OR SUBJECT "notification"',
+            'comment_alerts': 'SUBJECT "comment" OR SUBJECT "replied" OR SUBJECT "mention"',
+            'old_unread': 'UNSEEN',
+            'old_read': 'SEEN',  # Note: These will find all emails - add date filters manually if needed
+            'auto_confirmations': 'SUBJECT "confirm" OR SUBJECT "verify"',
+            'attachments_old': 'ALL',
+            'noreply': 'FROM "noreply" OR FROM "no-reply" OR FROM "donotreply"',
+            'security': 'SUBJECT "security" OR SUBJECT "alert"',
+            'travel': 'SUBJECT "reservation" OR SUBJECT "itinerary"',
+            'jobs': 'SUBJECT "job" OR SUBJECT "career" OR SUBJECT "hiring"',
+            'sales': 'SUBJECT "sales" OR SUBJECT "schedule a call"',
+            'spam': 'SUBJECT "winner" OR SUBJECT "congratulations"',
         }
 
         if cleanup_type not in cleanup_searches:
@@ -668,9 +669,11 @@ def search_cleanup():
 
         email_ids = messages[0].split() if messages[0] else []
 
-        # For date-based searches, get most recent first (reverse order)
-        if cleanup_type not in ['old_unread', 'old_read']:
-            email_ids = list(reversed(email_ids))
+        # Note: old_unread and old_read search ALL emails - need to fetch in reverse to get oldest first
+        if cleanup_type in ['old_unread', 'old_read']:
+            pass  # Keep in original order (oldest first)
+        else:
+            email_ids = list(reversed(email_ids))  # Most recent first for keyword searches
 
         # Limit results
         email_ids = email_ids[:limit]
@@ -741,17 +744,17 @@ def search_cleanup_count():
 
         counts = {}
         searches = [
-            ('verification_codes', f'SUBJECT "verification" BEFORE {date_ranges["6m"]}'),
-            ('password_reset', f'SUBJECT "password" BEFORE {date_ranges["1y"]}'),
-            ('shipping', f'SUBJECT "tracking" BEFORE {date_ranges["1m"]}'),
-            ('receipts', f'SUBJECT "receipt" BEFORE {date_ranges["1y"]}'),
-            ('newsletters', f'SUBJECT "newsletter" BEFORE {date_ranges["6m"]}'),
-            ('promotions', f'SUBJECT "sale" OR SUBJECT "offer" BEFORE {date_ranges["6m"]}'),
-            ('expired_trials', f'SUBJECT "trial" BEFORE {date_ranges["6m"]}'),
-            ('social', f'SUBJECT "follower" OR SUBJECT "liked" BEFORE {date_ranges["6m"]}'),
-            ('old_unread', f'UNSEEN BEFORE {date_ranges["1y"]}'),
-            ('old_read', f'SEEN BEFORE {date_ranges["2y"]}'),
-            ('auto_confirmations', f'SUBJECT "confirmation" BEFORE {date_ranges["1y"]}'),
+            ('verification_codes', 'SUBJECT "verification" OR SUBJECT "code" OR SUBJECT "OTP"'),
+            ('password_reset', 'SUBJECT "password" OR SUBJECT "reset"'),
+            ('shipping', 'SUBJECT "ship" OR SUBJECT "tracking" OR SUBJECT "deliver"'),
+            ('receipts', 'SUBJECT "receipt" OR SUBJECT "order confirmation"'),
+            ('newsletters', 'SUBJECT "newsletter" OR SUBJECT "digest" OR SUBJECT "update"'),
+            ('promotions', 'SUBJECT "sale" OR SUBJECT "offer" OR SUBJECT "deal"'),
+            ('expired_trials', 'SUBJECT "trial" OR SUBJECT "expired" OR SUBJECT "upgrade"'),
+            ('social', 'SUBJECT "follower" OR SUBJECT "liked" OR SUBJECT "notification"'),
+            ('old_unread', 'UNSEEN'),
+            ('old_read', 'SEEN'),
+            ('auto_confirmations', 'SUBJECT "confirm" OR SUBJECT "verify"'),
         ]
 
         for name, criteria in searches:
