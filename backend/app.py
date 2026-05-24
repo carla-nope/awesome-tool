@@ -1,7 +1,7 @@
-"""
-Yahoo Mail Declutter Tool - Backend v2
-Search, quick-pick cleanup, sender cleanup, and unsubscribe-link review.
-All bulk actions move messages to Trash for review in Yahoo.
+"""Yahoo cleaner backend.
+
+Focused on reliable Railway startup first, then Yahoo IMAP operations.
+Bulk cleanup actions move messages to Yahoo Trash for review.
 """
 
 import email
@@ -20,12 +20,31 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-me-in-railway")
 
 mail_connection = None
 connected_email = None
 trash_folder_cache = None
+
+
+def app_info():
+    return {"ok": True, "app": "Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use", "version": "v2.1"}
+
+
+@app.route("/")
+def root():
+    return jsonify(app_info())
+
+
+@app.route("/health")
+def simple_health():
+    return jsonify(app_info())
+
+
+@app.route("/api/health")
+def api_health():
+    return jsonify(app_info())
 
 
 def decode_email_header(header):
@@ -95,6 +114,10 @@ def imap_date(days_ago):
     return (datetime.now() - timedelta(days=days_ago)).strftime("%d-%b-%Y")
 
 
+def connected():
+    return mail_connection is not None
+
+
 def parse_folder_name(raw_folder):
     text = raw_folder.decode(errors="replace") if isinstance(raw_folder, bytes) else str(raw_folder)
     match = re.search(r'"([^"]+)"\s*$', text)
@@ -115,7 +138,8 @@ def find_trash_folder():
     if trash_folder_cache:
         return trash_folder_cache
     folders = list_folder_names()
-    for wanted in ["Trash", "Deleted", "Deleted Items", "INBOX/Trash", "Bulk Mail/Trash"]:
+    preferred = ["Trash", "Deleted", "Deleted Items", "INBOX/Trash", "Bulk Mail/Trash"]
+    for wanted in preferred:
         for folder in folders:
             if folder.lower() == wanted.lower():
                 trash_folder_cache = folder
@@ -127,10 +151,6 @@ def find_trash_folder():
             return folder
     trash_folder_cache = "Trash"
     return trash_folder_cache
-
-
-def require_connection():
-    return mail_connection is not None
 
 
 def search_ids(*criteria):
@@ -157,59 +177,25 @@ def unique_ids(groups):
 
 
 def recipe_searches(name):
-    return {
-        "verification_codes": [
-            ("SUBJECT", "verification"), ("SUBJECT", "verify"), ("SUBJECT", "code"),
-            ("SUBJECT", "passcode"), ("SUBJECT", "login code"), ("SUBJECT", "security code"),
-            ("SUBJECT", "authentication"), ("SUBJECT", "2FA"),
-        ],
-        "password_resets": [
-            ("SUBJECT", "password"), ("SUBJECT", "reset"), ("SUBJECT", "recover"),
-            ("SUBJECT", "account access"), ("SUBJECT", "sign-in"), ("SUBJECT", "login"),
-        ],
-        "receipts": [
-            ("SUBJECT", "receipt"), ("SUBJECT", "invoice"), ("SUBJECT", "order confirmation"),
-            ("SUBJECT", "payment"), ("SUBJECT", "purchase"), ("SUBJECT", "transaction"),
-            ("SUBJECT", "your order"),
-        ],
-        "shipping": [
-            ("SUBJECT", "ship"), ("SUBJECT", "shipped"), ("SUBJECT", "shipping"),
-            ("SUBJECT", "delivery"), ("SUBJECT", "delivered"), ("SUBJECT", "tracking"),
-            ("SUBJECT", "out for delivery"),
-        ],
-        "carts": [
-            ("SUBJECT", "cart"), ("SUBJECT", "checkout"), ("SUBJECT", "left something"),
-            ("SUBJECT", "still interested"),
-        ],
-        "newsletters": [
-            ("SUBJECT", "newsletter"), ("SUBJECT", "digest"), ("SUBJECT", "weekly"),
-            ("SUBJECT", "roundup"), ("SUBJECT", "updates"),
-        ],
-        "promotions": [
-            ("SUBJECT", "sale"), ("SUBJECT", "deal"), ("SUBJECT", "coupon"),
-            ("SUBJECT", "offer"), ("SUBJECT", "limited time"), ("SUBJECT", "clearance"),
-            ("SUBJECT", "% off"),
-        ],
-        "trials": [
-            ("SUBJECT", "trial"), ("SUBJECT", "expires"), ("SUBJECT", "expired"),
-            ("SUBJECT", "renew"), ("SUBJECT", "subscription"),
-        ],
-        "social": [
-            ("SUBJECT", "follow"), ("SUBJECT", "liked"), ("SUBJECT", "mentioned"),
-            ("SUBJECT", "tagged"), ("SUBJECT", "comment"), ("FROM", "facebook"),
-            ("FROM", "instagram"), ("FROM", "linkedin"), ("FROM", "twitter"),
-        ],
-        "noreply": [
-            ("FROM", "noreply"), ("FROM", "no-reply"), ("FROM", "donotreply"),
-            ("FROM", "do-not-reply"),
-        ],
+    recipes = {
+        "verification_codes": [("SUBJECT", "verification"), ("SUBJECT", "verify"), ("SUBJECT", "code"), ("SUBJECT", "passcode"), ("SUBJECT", "login code"), ("SUBJECT", "security code")],
+        "password_resets": [("SUBJECT", "password"), ("SUBJECT", "reset"), ("SUBJECT", "recover"), ("SUBJECT", "account access"), ("SUBJECT", "sign-in"), ("SUBJECT", "login")],
+        "receipts": [("SUBJECT", "receipt"), ("SUBJECT", "invoice"), ("SUBJECT", "order confirmation"), ("SUBJECT", "payment"), ("SUBJECT", "purchase"), ("SUBJECT", "your order")],
+        "shipping": [("SUBJECT", "ship"), ("SUBJECT", "shipped"), ("SUBJECT", "shipping"), ("SUBJECT", "delivery"), ("SUBJECT", "delivered"), ("SUBJECT", "tracking")],
+        "carts": [("SUBJECT", "cart"), ("SUBJECT", "checkout"), ("SUBJECT", "left something"), ("SUBJECT", "still interested")],
+        "newsletters": [("SUBJECT", "newsletter"), ("SUBJECT", "digest"), ("SUBJECT", "weekly"), ("SUBJECT", "roundup"), ("SUBJECT", "updates")],
+        "promotions": [("SUBJECT", "sale"), ("SUBJECT", "deal"), ("SUBJECT", "coupon"), ("SUBJECT", "offer"), ("SUBJECT", "limited time"), ("SUBJECT", "clearance")],
+        "trials": [("SUBJECT", "trial"), ("SUBJECT", "expires"), ("SUBJECT", "expired"), ("SUBJECT", "renew"), ("SUBJECT", "subscription")],
+        "social": [("SUBJECT", "follow"), ("SUBJECT", "liked"), ("SUBJECT", "mentioned"), ("SUBJECT", "tagged"), ("SUBJECT", "comment"), ("FROM", "facebook"), ("FROM", "instagram"), ("FROM", "linkedin")],
+        "noreply": [("FROM", "noreply"), ("FROM", "no-reply"), ("FROM", "donotreply"), ("FROM", "do-not-reply")],
         "old_unread_1y": [("UNSEEN", "BEFORE", imap_date(365))],
         "old_unread_2y": [("UNSEEN", "BEFORE", imap_date(730))],
         "old_read_2y": [("SEEN", "BEFORE", imap_date(730))],
         "old_read_5y": [("SEEN", "BEFORE", imap_date(1825))],
         "old_promotions_6m": [("SUBJECT", "sale", "BEFORE", imap_date(180)), ("SUBJECT", "coupon", "BEFORE", imap_date(180))],
         "old_receipts_2y": [("SUBJECT", "receipt", "BEFORE", imap_date(730)), ("SUBJECT", "invoice", "BEFORE", imap_date(730))],
-    }.get(name)
+    }
+    return recipes.get(name)
 
 
 def run_recipe(name):
@@ -218,13 +204,13 @@ def run_recipe(name):
         return None
     groups = []
     for criteria in searches:
-        normalized = []
-        for i, part in enumerate(criteria):
-            if i % 2 == 1 and part not in [imap_date(365), imap_date(730), imap_date(1825), imap_date(180)]:
-                normalized.append(f'"{part}"')
+        args = []
+        for index, part in enumerate(criteria):
+            if index % 2 == 1 and not re.match(r"\d{1,2}-[A-Za-z]{3}-\d{4}", part):
+                args.append(f'"{part}"')
             else:
-                normalized.append(part)
-        groups.append(search_ids(*normalized))
+                args.append(part)
+        groups.append(search_ids(*args))
     return unique_ids(groups)
 
 
@@ -267,11 +253,6 @@ def move_to_trash(msg_id):
         return False, folder, f"COPY returned {status}"
     except Exception as exc:
         return False, folder, str(exc)
-
-
-@app.route("/api/health")
-def health():
-    return jsonify({"ok": True, "app": "Yahoo Mail Declutter Tool v2"})
 
 
 @app.route("/api/connect", methods=["POST"])
@@ -330,7 +311,7 @@ def disconnect():
 
 @app.route("/api/folders")
 def folders():
-    if not require_connection():
+    if not connected():
         return jsonify({"error": "Not connected"}), 401
     try:
         return jsonify({"folders": list_folder_names(), "trash_folder": find_trash_folder()})
@@ -340,7 +321,7 @@ def folders():
 
 @app.route("/api/search", methods=["POST"])
 def search():
-    if not require_connection():
+    if not connected():
         return jsonify({"error": "Not connected"}), 401
     data = request.get_json() or {}
     limit = min(int(data.get("limit", 75)), 200)
@@ -369,7 +350,7 @@ def search():
 
 @app.route("/api/quick-pick/<name>")
 def quick_pick(name):
-    if not require_connection():
+    if not connected():
         return jsonify({"error": "Not connected"}), 401
     limit = min(request.args.get("limit", 75, type=int), 200)
     mail_connection.select("INBOX")
@@ -383,23 +364,16 @@ def quick_pick(name):
 
 @app.route("/api/quick-pick-counts")
 def quick_pick_counts():
-    if not require_connection():
+    if not connected():
         return jsonify({"counts": {}}), 401
-    names = [
-        "verification_codes", "password_resets", "receipts", "shipping", "carts", "newsletters",
-        "promotions", "trials", "social", "noreply", "old_unread_1y", "old_unread_2y",
-        "old_read_2y", "old_read_5y", "old_promotions_6m", "old_receipts_2y"
-    ]
+    names = ["verification_codes", "password_resets", "receipts", "shipping", "carts", "newsletters", "promotions", "trials", "social", "noreply", "old_unread_1y", "old_unread_2y", "old_read_2y", "old_read_5y", "old_promotions_6m", "old_receipts_2y"]
     mail_connection.select("INBOX")
-    counts = {}
-    for name in names:
-        counts[name] = len(run_recipe(name) or [])
-    return jsonify({"counts": counts})
+    return jsonify({"counts": {name: len(run_recipe(name) or []) for name in names}})
 
 
 @app.route("/api/move-to-trash", methods=["POST"])
 def move_selected_to_trash():
-    if not require_connection():
+    if not connected():
         return jsonify({"error": "Not connected"}), 401
     ids = (request.get_json() or {}).get("email_ids", [])
     if not ids:
@@ -414,14 +388,7 @@ def move_selected_to_trash():
             moved += 1
         else:
             failed.append({"id": msg_id, "error": err})
-    return jsonify({
-        "success": len(failed) == 0,
-        "moved": moved,
-        "deleted": moved,
-        "failed": failed,
-        "trash_folder": folder,
-        "message": f"Moved {moved} message(s) to {folder}. Review them in Yahoo before emptying Trash."
-    })
+    return jsonify({"success": len(failed) == 0, "moved": moved, "deleted": moved, "failed": failed, "trash_folder": folder, "message": f"Moved {moved} message(s) to {folder}."})
 
 
 @app.route("/api/delete", methods=["POST"])
@@ -431,7 +398,7 @@ def legacy_delete_alias():
 
 @app.route("/api/top-senders")
 def top_senders():
-    if not require_connection():
+    if not connected():
         return jsonify({"error": "Not connected"}), 401
     limit = min(request.args.get("sample", 500, type=int), 2000)
     mail_connection.select("INBOX")
@@ -445,8 +412,7 @@ def top_senders():
             msg = email.message_from_bytes(data[0][1])
             sender = decode_email_header(msg.get("From", "Unknown"))
             key = sender_domain(sender) or sender
-            if key not in senders:
-                senders[key] = {"sender": sender, "domain": key, "count": 0, "samples": []}
+            senders.setdefault(key, {"sender": sender, "domain": key, "count": 0, "samples": []})
             senders[key]["count"] += 1
             if len(senders[key]["samples"]) < 3:
                 senders[key]["samples"].append(decode_email_header(msg.get("Subject", "")))
@@ -458,7 +424,7 @@ def top_senders():
 
 @app.route("/api/sender/<path:value>")
 def sender_messages(value):
-    if not require_connection():
+    if not connected():
         return jsonify({"error": "Not connected"}), 401
     limit = min(request.args.get("limit", 75, type=int), 200)
     mail_connection.select("INBOX")
@@ -469,7 +435,7 @@ def sender_messages(value):
 
 @app.route("/api/unsubscribe-finder")
 def unsubscribe_finder():
-    if not require_connection():
+    if not connected():
         return jsonify({"error": "Not connected"}), 401
     sample = min(request.args.get("sample", 200, type=int), 1000)
     mail_connection.select("INBOX")
@@ -481,8 +447,7 @@ def unsubscribe_finder():
             if not summary or not summary["unsubscribe_links"]:
                 continue
             key = summary["sender_domain"] or summary["sender"]
-            if key not in grouped:
-                grouped[key] = {"sender": summary["sender"], "domain": key, "count": 0, "links": [], "samples": []}
+            grouped.setdefault(key, {"sender": summary["sender"], "domain": key, "count": 0, "links": [], "samples": []})
             grouped[key]["count"] += 1
             grouped[key]["links"].extend(summary["unsubscribe_links"])
             if len(grouped[key]["samples"]) < 3:
@@ -499,16 +464,13 @@ def unsubscribe_finder():
 
 @app.route("/api/stats")
 def stats():
-    if not require_connection():
+    if not connected():
         return jsonify({"error": "Not connected"}), 401
     mail_connection.select("INBOX")
-    return jsonify({
-        "total_emails": len(search_ids("ALL")),
-        "unread_count": len(search_ids("UNSEEN")),
-        "trash_folder": find_trash_folder(),
-    })
+    return jsonify({"total_emails": len(search_ids("ALL")), "unread_count": len(search_ids("UNSEEN")), "trash_folder": find_trash_folder()})
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG") == "1")
+    port = int(os.environ.get("PORT", "8080"))
+    logger.info("Starting backend on port %s", port)
+    app.run(host="0.0.0.0", port=port, debug=False)
