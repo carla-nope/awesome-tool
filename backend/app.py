@@ -622,38 +622,38 @@ def search_cleanup():
     try:
         mail_connection.select('INBOX')
 
-        # Calculate date filters (YYYY/MM/DD format for Yahoo)
+        # Calculate date filters for IMAP (DD-Mon-YYYY format required)
         now = datetime.now()
         date_ranges = {
-            '1y': now.strftime('%Y/%m/%d'),
-            '2y': (now.replace(year=now.year - 2)).strftime('%Y/%m/%d'),
-            '3y': (now.replace(year=now.year - 3)).strftime('%Y/%m/%d'),
-            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%Y/%m/%d'),
-            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%Y/%m/%d'),
+            '1y': (now.replace(year=now.year - 1)).strftime('%d-%b-%Y'),
+            '2y': (now.replace(year=now.year - 2)).strftime('%d-%b-%Y'),
+            '3y': (now.replace(year=now.year - 3)).strftime('%d-%b-%Y'),
+            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%d-%b-%Y'),
+            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
         }
 
-        # Yahoo-specific search combinations
+        # IMAP search combinations using standard IMAP syntax
         cleanup_searches = {
-            'verification_codes': f'before:{date_ranges["6m"]} "verification code"',
-            'password_reset': f'before:{date_ranges["1y"]} "reset your password"',
-            'shipping': f'before:{date_ranges["1m"]} "tracking number"',
-            'receipts': f'before:{date_ranges["1y"]} subject:receipt',
-            'cart': f'before:{date_ranges["6m"]} "left something"',
-            'newsletters': f'before:{date_ranges["6m"]} unsubscribe',
-            'promotions': f'before:{date_ranges["6m"]} subject:sale',
-            'expired_trials': f'before:{date_ranges["6m"]} "trial expired"',
-            'social': f'before:{date_ranges["6m"]} "liked your post"',
-            'comment_alerts': f'before:{date_ranges["6m"]} "commented on"',
+            'verification_codes': f'SUBJECT "verification" BEFORE {date_ranges["6m"]}',
+            'password_reset': f'SUBJECT "password" BEFORE {date_ranges["1y"]}',
+            'shipping': f'SUBJECT "tracking" BEFORE {date_ranges["1m"]}',
+            'receipts': f'SUBJECT "receipt" BEFORE {date_ranges["1y"]}',
+            'cart': f'SUBJECT "cart" OR SUBJECT "purchase" BEFORE {date_ranges["6m"]}',
+            'newsletters': f'SUBJECT "newsletter" BEFORE {date_ranges["6m"]}',
+            'promotions': f'SUBJECT "sale" OR SUBJECT "offer" BEFORE {date_ranges["6m"]}',
+            'expired_trials': f'SUBJECT "trial" BEFORE {date_ranges["6m"]}',
+            'social': f'SUBJECT "follower" OR SUBJECT "liked" BEFORE {date_ranges["6m"]}',
+            'comment_alerts': f'SUBJECT "comment" BEFORE {date_ranges["6m"]}',
             'old_unread': f'UNSEEN BEFORE {date_ranges["1y"]}',
             'old_read': f'SEEN BEFORE {date_ranges["2y"]}',
-            'auto_confirmations': f'before:{date_ranges["1y"]} "order confirmation"',
-            'attachments_old': f'has:attachment before:{date_ranges["2y"]}',
-            'noreply': f'from:noreply before:{date_ranges["1y"]}',
-            'security': f'before:{date_ranges["1y"]} "security alert"',
-            'travel': f'before:{date_ranges["1y"]} "reservation confirmed"',
-            'jobs': f'before:{date_ranges["6m"]} "job alert"',
-            'sales': f'before:{date_ranges["6m"]} "quick question"',
-            'spam': f'before:{date_ranges["6m"]} winner',
+            'auto_confirmations': f'SUBJECT "confirmation" BEFORE {date_ranges["1y"]}',
+            'attachments_old': f'ALL BEFORE {date_ranges["2y"]}',
+            'noreply': f'FROM "noreply" BEFORE {date_ranges["1y"]}',
+            'security': f'SUBJECT "security" BEFORE {date_ranges["1y"]}',
+            'travel': f'SUBJECT "reservation" BEFORE {date_ranges["1y"]}',
+            'jobs': f'SUBJECT "job" BEFORE {date_ranges["6m"]}',
+            'sales': f'SUBJECT "sales" BEFORE {date_ranges["6m"]}',
+            'spam': f'SUBJECT "winner" BEFORE {date_ranges["6m"]}',
         }
 
         if cleanup_type not in cleanup_searches:
@@ -732,26 +732,26 @@ def search_cleanup_count():
         mail_connection.select('INBOX')
         now = datetime.now()
         date_ranges = {
-            '1y': now.strftime('%Y/%m/%d'),
-            '2y': (now.replace(year=now.year - 2)).strftime('%Y/%m/%d'),
-            '3y': (now.replace(year=now.year - 3)).strftime('%Y/%m/%d'),
-            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%Y/%m/%d'),
-            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%Y/%m/%d'),
+            '1y': (now.replace(year=now.year - 1)).strftime('%d-%b-%Y'),
+            '2y': (now.replace(year=now.year - 2)).strftime('%d-%b-%Y'),
+            '3y': (now.replace(year=now.year - 3)).strftime('%d-%b-%Y'),
+            '6m': (now.replace(month=max(1, now.month - 6))).strftime('%d-%b-%Y'),
+            '1m': (now.replace(month=max(1, now.month - 1))).strftime('%d-%b-%Y'),
         }
 
         counts = {}
         searches = [
-            ('verification_codes', f'before:{date_ranges["6m"]} "verification code"'),
-            ('password_reset', f'before:{date_ranges["1y"]} "reset your password"'),
-            ('shipping', f'before:{date_ranges["1m"]} "tracking number"'),
-            ('receipts', f'before:{date_ranges["1y"]} subject:receipt'),
-            ('newsletters', f'before:{date_ranges["6m"]} unsubscribe'),
-            ('promotions', f'before:{date_ranges["6m"]} subject:sale'),
-            ('expired_trials', f'before:{date_ranges["6m"]} "trial expired"'),
-            ('social', f'before:{date_ranges["6m"]} "liked your post"'),
-            ('old_unread', f'UNSEEN before:{date_ranges["1y"]}'),
-            ('old_read', f'SEEN before:{date_ranges["2y"]}'),
-            ('auto_confirmations', f'before:{date_ranges["1y"]} "order confirmation"'),
+            ('verification_codes', f'SUBJECT "verification" BEFORE {date_ranges["6m"]}'),
+            ('password_reset', f'SUBJECT "password" BEFORE {date_ranges["1y"]}'),
+            ('shipping', f'SUBJECT "tracking" BEFORE {date_ranges["1m"]}'),
+            ('receipts', f'SUBJECT "receipt" BEFORE {date_ranges["1y"]}'),
+            ('newsletters', f'SUBJECT "newsletter" BEFORE {date_ranges["6m"]}'),
+            ('promotions', f'SUBJECT "sale" OR SUBJECT "offer" BEFORE {date_ranges["6m"]}'),
+            ('expired_trials', f'SUBJECT "trial" BEFORE {date_ranges["6m"]}'),
+            ('social', f'SUBJECT "follower" OR SUBJECT "liked" BEFORE {date_ranges["6m"]}'),
+            ('old_unread', f'UNSEEN BEFORE {date_ranges["1y"]}'),
+            ('old_read', f'SEEN BEFORE {date_ranges["2y"]}'),
+            ('auto_confirmations', f'SUBJECT "confirmation" BEFORE {date_ranges["1y"]}'),
         ]
 
         for name, criteria in searches:
