@@ -255,8 +255,10 @@ def search_emails():
         if not search_criteria:
             search_criteria = ['ALL']
 
-        # Execute search with charset=None for Yahoo compatibility
-        status, messages = mail_connection.search(None, charset=None, query=' '.join(search_criteria))
+        # Execute search - split into individual arguments
+        search_args = ' '.join(search_criteria)
+        logger.info(f"Executing search: {search_args}")
+        status, messages = mail_connection.search(None, *search_criteria)
 
         if status != 'OK':
             return jsonify({'error': 'Search failed'}), 500
@@ -665,11 +667,13 @@ def search_cleanup():
         # Log the search for debugging
         logger.info(f"Cleanup search for '{cleanup_type}': {search_criteria}")
 
-        # Try using charset=None for Yahoo compatibility
-        status, messages = mail_connection.search(None, charset=None, query=search_criteria)
+        # Split criteria into individual arguments for IMAP search
+        # Using standard IMAP argument format
+        search_args = search_criteria.split()
+        status, messages = mail_connection.search(None, *search_args)
 
         if status != 'OK':
-            logger.warning(f"Search failed for {cleanup_type}")
+            logger.warning(f"Search failed for {cleanup_type} - status: {status}")
             return jsonify({'emails': [], 'total': 0, 'type': cleanup_type})
 
         email_ids = messages[0].split() if messages[0] else []
@@ -765,7 +769,8 @@ def search_cleanup_count():
         for name, criteria in searches:
             try:
                 logger.info(f"Count search '{name}': {criteria}")
-                status, messages = mail_connection.search(None, charset=None, query=criteria)
+                search_args = criteria.split()
+                status, messages = mail_connection.search(None, *search_args)
                 if status == 'OK' and messages[0]:
                     counts[name] = len(messages[0].split())
                 else:
