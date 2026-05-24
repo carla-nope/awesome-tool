@@ -607,6 +607,94 @@ def get_stats():
         return jsonify({'error': str(e)}), 500
 
 
+# Smart Cleanup Search endpoint
+@app.route('/api/search/cleanup', methods=['GET'])
+def search_cleanup():
+    """Search for specific cleanup categories"""
+    global mail_connection
+
+    if mail_connection is None:
+        return jsonify({'error': 'Not connected'}), 401
+
+    cleanup_type = request.args.get('type', '')
+    limit = request.args.get('limit', 50, type=int)
+
+    try:
+        mail_connection.select('INBOX')
+
+        # Calculate date for 1 year ago
+        one_year_ago = (datetime.now().replace(year=datetime.now().year - 1)).strftime('%d-%b-%Y')
+        six_months_ago = (datetime.now().replace(month=max(1, datetime.now().month - 6))).strftime('%d-%b-%Y')
+
+        if cleanup_type == 'old_unread':
+            # Unread emails older than 1 year
+            search_criteria = f'UNSEEN SINCE {one_year_ago}'
+        elif cleanup_type == 'verification_codes':
+            # Likely verification codes - looking for common patterns
+            search_criteria = '(OR SUBJECT "code" OR SUBJECT "verification" OR SUBJECT "confirm" OR SUBJECT "verify" OR SUBJECT "OTP" OR SUBJECT "password" OR SUBJECT "reset") SINCE {six_months_ago}'
+        elif cleanup_type == 'old_newsletters':
+            # Newsletters with unsubscribe links, older than 6 months
+            search_criteria = f'SINCE {six_months_ago}'
+        elif cleanup_type == 'auto_confirmations':
+            # Auto confirmations - order, shipping, etc.
+            search_criteria = '(OR SUBJECT "confirmation" OR SUBJECT "order" OR SUBJECT "shipping" OR SUBJECT "delivery" OR SUBJECT "receipt" OR SUBJECT "ticket") SINCE {six_months_ago}'
+        else:
+            return jsonify({'error': 'Unknown cleanup type'}), 400
+
+        status, messages = mail_connection.search(None, search_criteria)
+
+        if status != 'OK':
+            return jsonify({'error': 'Search failed'}), 500
+
+        email_ids = messages[0].split() if messages[0] else []
+
+        # Limit results
+        email_ids = email_ids[:limit]
+
+        emails = []
+        for email_id in email_ids:
+            try:
+                status, msg_data = mail_connection.fetch(email_id, '(RFC822)')
+                if status == 'OK' and msg_data:
+                    raw_email = msg_data[0][1]
+                    msg = email.message_from_bytes(raw_email)
+
+                    subject = decode_email_header(msg.get('Subject', ''))
+                    sender = decode_email_header(msg.get('From', ''))
+                    date = msg.get('Date', '')
+                    message_id = email_id.decode()
+
+                    body = get_email_body(msg)
+                    snippet = body[:200] if body else '(No content)'
+
+                    urls = extract_urls(body)
+                    unsubscribe_links = find_unsubscribe_links(body, urls)
+
+                    emails.append({
+                        'id': message_id,
+                        'subject': subject,
+                        'sender': sender,
+                        'date': date,
+                        'snippet': snippet,
+                        'has_unsubscribe': len(unsubscribe_links) > 0,
+                        'unsubscribe_links': unsubscribe_links[:3],
+                        'category': cleanup_type
+                    })
+            except Exception as e:
+                logger.warning(f"Error fetching email {email_id}: {e}")
+                continue
+
+        return jsonify({
+            'emails': emails,
+            'total': len(emails),
+            'type': cleanup_type
+        })
+
+    except Exception as e:
+        logger.error(f"Cleanup search error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/folders', methods=['GET'])
 def get_folders():
     """Get list of folders"""

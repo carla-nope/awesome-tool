@@ -145,6 +145,27 @@
                         </button>
                     </div>
 
+                    <!-- Smart Cleanup -->
+                    <div class="p-4 border-b border-gray-200 space-y-2">
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Smart Cleanup</p>
+                        <button id="cleanupOldBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-2">
+                            <span class="text-red-500">🗑️</span>
+                            <span>Old Unread (1+ year)</span>
+                        </button>
+                        <button id="cleanupCodesBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 flex items-center gap-2">
+                            <span class="text-orange-500">🔐</span>
+                            <span>Verification Codes</span>
+                        </button>
+                        <button id="cleanupNewslettersBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center gap-2">
+                            <span class="text-purple-500">📰</span>
+                            <span>Old Newsletters</span>
+                        </button>
+                        <button id="cleanupAutoBtn" class="w-full text-left px-3 py-2 text-sm rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 flex items-center gap-2">
+                            <span class="text-gray-500">📦</span>
+                            <span>Auto-Confirmations</span>
+                        </button>
+                    </div>
+
                     <!-- Category Stats -->
                     <div class="p-4 flex-1 overflow-y-auto scrollbar-thin">
                         <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Categories</p>
@@ -489,6 +510,10 @@ Example:
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sender, email_id: emailId, unsubscribe_url: unsubscribeUrl })
                 });
+                return res.json();
+            },
+            async getCleanupEmails(type, limit = 50) {
+                const res = await fetch(`${API_BASE}/api/search/cleanup?type=${type}&limit=${limit}`);
                 return res.json();
             }
         };
@@ -1096,6 +1121,38 @@ Example:
         document.getElementById('extractBatchBtn').onclick = extractBatch;
         document.getElementById('copyBatchBtn').onclick = copyBatchToClipboard;
         document.getElementById('executeCommandsBtn').onclick = executeCommands;
+
+        // Smart Cleanup Event Handlers
+        document.getElementById('cleanupOldBtn').onclick = () => loadCleanupEmails('old_unread');
+        document.getElementById('cleanupCodesBtn').onclick = () => loadCleanupEmails('verification_codes');
+        document.getElementById('cleanupNewslettersBtn').onclick = () => loadCleanupEmails('old_newsletters');
+        document.getElementById('cleanupAutoBtn').onclick = () => loadCleanupEmails('auto_confirmations');
+
+        async function loadCleanupEmails(type) {
+            const loading = document.getElementById('loadingState');
+            loading.classList.remove('hidden');
+
+            const typeLabels = {
+                'old_unread': 'Old Unread (1+ year)',
+                'verification_codes': 'Verification Codes',
+                'old_newsletters': 'Old Newsletters',
+                'auto_confirmations': 'Auto-Confirmations'
+            };
+
+            try {
+                const result = await api.getCleanupEmails(type);
+                state.currentEmails = result.emails || [];
+                state.totalEmails = result.total || 0;
+                state.totalPages = 1;
+                state.currentPage = 1;
+
+                renderEmails(state.currentEmails);
+                updatePagination();
+                showToast(`Found ${result.total} ${typeLabels[type] || type} emails`, 'info');
+            } catch (err) {
+                showToast('Failed to load cleanup emails', 'error');
+            }
+        }
 
         // Check if already connected on load
         async function checkConnection() {
