@@ -23,7 +23,7 @@ trash_folder_cache = None
 
 
 def app_info():
-    return {"ok": True, "app": "Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use", "version": "v2.2"}
+    return {"ok": True, "app": "Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use", "version": "v2.3"}
 
 
 @app.route("/")
@@ -104,6 +104,16 @@ def connected():
     return mail_connection is not None
 
 
+def select_inbox():
+    if not connected():
+        return False
+    try:
+        status, _ = mail_connection.select("INBOX")
+        return status == "OK"
+    except Exception:
+        return False
+
+
 def parse_folder_name(raw_folder):
     text = raw_folder.decode(errors="replace") if isinstance(raw_folder, bytes) else str(raw_folder)
     match = re.search(r'"([^"]+)"\s*$', text)
@@ -172,14 +182,14 @@ def unique_ids(groups):
 
 
 def recipe_searches(name):
-    return {
+    recipes = {
         "verification_codes": [("SUBJECT", "verification"), ("SUBJECT", "verify"), ("SUBJECT", "code"), ("SUBJECT", "passcode"), ("SUBJECT", "login code"), ("SUBJECT", "security code")],
         "password_resets": [("SUBJECT", "password"), ("SUBJECT", "reset"), ("SUBJECT", "recover"), ("SUBJECT", "account access"), ("SUBJECT", "sign-in"), ("SUBJECT", "login")],
         "receipts": [("SUBJECT", "receipt"), ("SUBJECT", "invoice"), ("SUBJECT", "order confirmation"), ("SUBJECT", "payment"), ("SUBJECT", "purchase"), ("SUBJECT", "your order")],
         "shipping": [("SUBJECT", "ship"), ("SUBJECT", "shipped"), ("SUBJECT", "shipping"), ("SUBJECT", "delivery"), ("SUBJECT", "delivered"), ("SUBJECT", "tracking")],
         "carts": [("SUBJECT", "cart"), ("SUBJECT", "checkout"), ("SUBJECT", "left something"), ("SUBJECT", "still interested")],
         "newsletters": [("SUBJECT", "newsletter"), ("SUBJECT", "digest"), ("SUBJECT", "weekly"), ("SUBJECT", "roundup"), ("SUBJECT", "updates")],
-        "promotions": [("SUBJECT", "sale"), ("SUBJECT", "deal"), ("SUBJECT", "coupon"), ("SUBJECT", "offer"), ("SUBJECT", "limited time"), ("SUBJECT", "clearance")],
+        "promotions": [("SUBJECT", "sale"), ("SUBJECT", "deal"), ("SUBJECT", "coupon"), ("SUBJECT", "offer"), ("SUBJECT", "limited time"), ("SUBJECT", "clearance"), ("SUBJECT", "save"), ("SUBJECT", "discount")],
         "trials": [("SUBJECT", "trial"), ("SUBJECT", "expires"), ("SUBJECT", "expired"), ("SUBJECT", "renew"), ("SUBJECT", "subscription")],
         "social": [("SUBJECT", "follow"), ("SUBJECT", "liked"), ("SUBJECT", "mentioned"), ("SUBJECT", "tagged"), ("SUBJECT", "comment"), ("FROM", "facebook"), ("FROM", "instagram"), ("FROM", "linkedin")],
         "noreply": [("FROM", "noreply"), ("FROM", "no-reply"), ("FROM", "donotreply"), ("FROM", "do-not-reply")],
@@ -187,9 +197,10 @@ def recipe_searches(name):
         "old_unread_2y": [("UNSEEN", "BEFORE", imap_date(730))],
         "old_read_2y": [("SEEN", "BEFORE", imap_date(730))],
         "old_read_5y": [("SEEN", "BEFORE", imap_date(1825))],
-        "old_promotions_6m": [("SUBJECT", "sale", "BEFORE", imap_date(180)), ("SUBJECT", "coupon", "BEFORE", imap_date(180))],
-        "old_receipts_2y": [("SUBJECT", "receipt", "BEFORE", imap_date(730)), ("SUBJECT", "invoice", "BEFORE", imap_date(730))],
-    }.get(name)
+        "old_promotions_6m": [("SUBJECT", "sale", "BEFORE", imap_date(180)), ("SUBJECT", "coupon", "BEFORE", imap_date(180)), ("SUBJECT", "deal", "BEFORE", imap_date(180)), ("SUBJECT", "offer", "BEFORE", imap_date(180))],
+        "old_receipts_2y": [("SUBJECT", "receipt", "BEFORE", imap_date(730)), ("SUBJECT", "invoice", "BEFORE", imap_date(730)), ("SUBJECT", "order", "BEFORE", imap_date(730))],
+    }
+    return recipes.get(name)
 
 
 def run_recipe(name):
@@ -199,11 +210,35 @@ def run_recipe(name):
     return unique_ids([search_ids(*quote_criteria(criteria)) for criteria in searches])
 
 
+def fetch_header_message(msg_id):
+    fetch_patterns = [
+        "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])",
+        "(BODY[HEADER.FIELDS (FROM SUBJECT DATE)])",
+        "(RFC822.HEADER)",
+    ]
+    for pattern in fetch_patterns:
+        try:
+            status, data = mail_connection.fetch(msg_id, pattern)
+            if status == "OK" and data:
+                for part in data:
+                    if isinstance(part, tuple) and part[1]:
+                        return email.message_from_bytes(part[1])
+        except Exception as exc:
+            logger.warning("Header fetch failed for %s using %s: %s", msg_id, pattern, exc)
+    return None
+
+
 def summarize_email(msg_id, matched_by=None):
     status, data = mail_connection.fetch(msg_id, "(RFC822)")
     if status != "OK" or not data:
         return None
-    msg = email.message_from_bytes(data[0][1])
+    msg = None
+    for part in data:
+        if isinstance(part, tuple) and part[1]:
+            msg = email.message_from_bytes(part[1])
+            break
+    if msg is None:
+        return None
     subject = decode_email_header(msg.get("Subject", ""))
     sender = decode_email_header(msg.get("From", ""))
     body = get_email_body(msg)
@@ -316,7 +351,7 @@ def search():
         criteria += ["SINCE", datetime.strptime(data["since"], "%Y-%m-%d").strftime("%d-%b-%Y")]
     if not criteria:
         criteria = ["ALL"]
-    mail_connection.select("INBOX")
+    select_inbox()
     ids = list(reversed(search_ids(*criteria)))
     emails = [item for msg_id in ids[:limit] if (item := summarize_email(msg_id, "Manual search"))]
     return jsonify({"emails": emails, "total": len(ids), "shown": len(emails)})
@@ -327,7 +362,7 @@ def quick_pick(name):
     if not connected():
         return jsonify({"error": "Not connected"}), 401
     limit = min(request.args.get("limit", 75, type=int), 200)
-    mail_connection.select("INBOX")
+    select_inbox()
     ids = run_recipe(name)
     if ids is None:
         return jsonify({"error": f"Unknown quick-pick recipe: {name}"}), 400
@@ -341,7 +376,7 @@ def quick_pick_counts():
     if not connected():
         return jsonify({"counts": {}}), 401
     names = ["verification_codes", "password_resets", "receipts", "shipping", "carts", "newsletters", "promotions", "trials", "social", "noreply", "old_unread_1y", "old_unread_2y", "old_read_2y", "old_read_5y", "old_promotions_6m", "old_receipts_2y"]
-    mail_connection.select("INBOX")
+    select_inbox()
     return jsonify({"counts": {name: len(run_recipe(name) or []) for name in names}})
 
 
@@ -352,7 +387,7 @@ def move_selected_to_trash():
     ids = (request.get_json() or {}).get("email_ids", [])
     if not ids:
         return jsonify({"error": "No messages selected"}), 400
-    mail_connection.select("INBOX")
+    select_inbox()
     moved = 0
     failed = []
     folder = find_trash_folder()
@@ -374,26 +409,24 @@ def legacy_delete_alias():
 def top_senders():
     if not connected():
         return jsonify({"error": "Not connected"}), 401
-    limit = min(request.args.get("sample", 500, type=int), 2000)
-    mail_connection.select("INBOX")
+    limit = min(request.args.get("sample", 150, type=int), 250)
+    select_inbox()
     ids = list(reversed(search_ids("ALL")))[:limit]
     senders = {}
+    fetched = 0
     for msg_id in ids:
-        try:
-            status, data = mail_connection.fetch(msg_id, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
-            if status != "OK" or not data:
-                continue
-            msg = email.message_from_bytes(data[0][1])
-            sender = decode_email_header(msg.get("From", "Unknown"))
-            key = sender_domain(sender) or sender
-            senders.setdefault(key, {"sender": sender, "domain": key, "count": 0, "samples": []})
-            senders[key]["count"] += 1
-            if len(senders[key]["samples"]) < 3:
-                senders[key]["samples"].append(decode_email_header(msg.get("Subject", "")))
-        except Exception:
+        msg = fetch_header_message(msg_id)
+        if msg is None:
             continue
+        fetched += 1
+        sender = decode_email_header(msg.get("From", "Unknown"))
+        key = sender_domain(sender) or sender or "Unknown"
+        senders.setdefault(key, {"sender": sender, "domain": key, "count": 0, "samples": []})
+        senders[key]["count"] += 1
+        if len(senders[key]["samples"]) < 3:
+            senders[key]["samples"].append(decode_email_header(msg.get("Subject", "")))
     ranked = sorted(senders.values(), key=lambda x: x["count"], reverse=True)[:50]
-    return jsonify({"senders": ranked, "sampled": len(ids)})
+    return jsonify({"senders": ranked, "sampled": len(ids), "headers_read": fetched})
 
 
 @app.route("/api/sender/<path:value>")
@@ -401,7 +434,7 @@ def sender_messages(value):
     if not connected():
         return jsonify({"error": "Not connected"}), 401
     limit = min(request.args.get("limit", 75, type=int), 200)
-    mail_connection.select("INBOX")
+    select_inbox()
     ids = list(reversed(search_ids("FROM", f'"{value}"')))
     emails = [item for msg_id in ids[:limit] if (item := summarize_email(msg_id, f"From {value}"))]
     return jsonify({"emails": emails, "total": len(ids), "shown": len(emails), "sender": value})
@@ -411,8 +444,8 @@ def sender_messages(value):
 def unsubscribe_finder():
     if not connected():
         return jsonify({"error": "Not connected"}), 401
-    sample = min(request.args.get("sample", 200, type=int), 1000)
-    mail_connection.select("INBOX")
+    sample = min(request.args.get("sample", 120, type=int), 250)
+    select_inbox()
     ids = list(reversed(search_ids("ALL")))[:sample]
     grouped = {}
     for msg_id in ids:
@@ -440,7 +473,7 @@ def unsubscribe_finder():
 def stats():
     if not connected():
         return jsonify({"error": "Not connected"}), 401
-    mail_connection.select("INBOX")
+    select_inbox()
     return jsonify({"total_emails": len(search_ids("ALL")), "unread_count": len(search_ids("UNSEEN")), "trash_folder": find_trash_folder()})
 
 
