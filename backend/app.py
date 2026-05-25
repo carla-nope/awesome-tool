@@ -1,9 +1,3 @@
-"""Yahoo cleaner backend.
-
-Focused on reliable Railway startup first, then Yahoo IMAP operations.
-Bulk cleanup actions move messages to Yahoo Trash for review.
-"""
-
 import email
 import imaplib
 import logging
@@ -29,21 +23,13 @@ trash_folder_cache = None
 
 
 def app_info():
-    return {"ok": True, "app": "Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use", "version": "v2.1"}
+    return {"ok": True, "app": "Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use", "version": "v2.2"}
 
 
 @app.route("/")
-def root():
-    return jsonify(app_info())
-
-
 @app.route("/health")
-def simple_health():
-    return jsonify(app_info())
-
-
 @app.route("/api/health")
-def api_health():
+def health():
     return jsonify(app_info())
 
 
@@ -51,13 +37,13 @@ def decode_email_header(header):
     if header is None:
         return ""
     try:
-        output = []
+        parts = []
         for content, charset in decode_header(header):
             if isinstance(content, bytes):
-                output.append(content.decode(charset or "utf-8", errors="replace"))
+                parts.append(content.decode(charset or "utf-8", errors="replace"))
             else:
-                output.append(str(content))
-        return "".join(output)
+                parts.append(str(content))
+        return "".join(parts)
     except Exception:
         return str(header)
 
@@ -94,12 +80,12 @@ def extract_urls(text):
 
 
 def find_unsubscribe_links(text):
-    keywords = ["unsubscribe", "opt-out", "optout", "email-preferences", "manage-subscription", "unsub"]
+    terms = ["unsubscribe", "opt-out", "optout", "email-preferences", "manage-subscription", "unsub"]
     links = []
     for url in extract_urls(text):
         parsed = urlparse(url)
         haystack = f"{url} {parsed.netloc} {parsed.path}".lower()
-        if any(keyword in haystack for keyword in keywords):
+        if any(term in haystack for term in terms):
             links.append(url)
     return list(dict.fromkeys(links))[:5]
 
@@ -121,9 +107,7 @@ def connected():
 def parse_folder_name(raw_folder):
     text = raw_folder.decode(errors="replace") if isinstance(raw_folder, bytes) else str(raw_folder)
     match = re.search(r'"([^"]+)"\s*$', text)
-    if match:
-        return match.group(1)
-    return text.split(" ")[-1].strip('"')
+    return match.group(1) if match else text.split(" ")[-1].strip('"')
 
 
 def list_folder_names():
@@ -138,15 +122,13 @@ def find_trash_folder():
     if trash_folder_cache:
         return trash_folder_cache
     folders = list_folder_names()
-    preferred = ["Trash", "Deleted", "Deleted Items", "INBOX/Trash", "Bulk Mail/Trash"]
-    for wanted in preferred:
+    for wanted in ["Trash", "Deleted", "Deleted Items", "INBOX/Trash", "Bulk Mail/Trash"]:
         for folder in folders:
             if folder.lower() == wanted.lower():
                 trash_folder_cache = folder
                 return folder
     for folder in folders:
-        lower = folder.lower()
-        if "trash" in lower or "deleted" in lower:
+        if "trash" in folder.lower() or "deleted" in folder.lower():
             trash_folder_cache = folder
             return folder
     trash_folder_cache = "Trash"
@@ -164,6 +146,19 @@ def search_ids(*criteria):
         return []
 
 
+def quote_criteria(criteria):
+    quoted = []
+    quote_after = {"SUBJECT", "FROM", "TEXT", "TO", "CC", "BCC"}
+    previous = None
+    for part in criteria:
+        if previous in quote_after and not str(part).startswith('"'):
+            quoted.append(f'"{part}"')
+        else:
+            quoted.append(part)
+        previous = part
+    return quoted
+
+
 def unique_ids(groups):
     seen = set()
     results = []
@@ -177,7 +172,7 @@ def unique_ids(groups):
 
 
 def recipe_searches(name):
-    recipes = {
+    return {
         "verification_codes": [("SUBJECT", "verification"), ("SUBJECT", "verify"), ("SUBJECT", "code"), ("SUBJECT", "passcode"), ("SUBJECT", "login code"), ("SUBJECT", "security code")],
         "password_resets": [("SUBJECT", "password"), ("SUBJECT", "reset"), ("SUBJECT", "recover"), ("SUBJECT", "account access"), ("SUBJECT", "sign-in"), ("SUBJECT", "login")],
         "receipts": [("SUBJECT", "receipt"), ("SUBJECT", "invoice"), ("SUBJECT", "order confirmation"), ("SUBJECT", "payment"), ("SUBJECT", "purchase"), ("SUBJECT", "your order")],
@@ -194,24 +189,14 @@ def recipe_searches(name):
         "old_read_5y": [("SEEN", "BEFORE", imap_date(1825))],
         "old_promotions_6m": [("SUBJECT", "sale", "BEFORE", imap_date(180)), ("SUBJECT", "coupon", "BEFORE", imap_date(180))],
         "old_receipts_2y": [("SUBJECT", "receipt", "BEFORE", imap_date(730)), ("SUBJECT", "invoice", "BEFORE", imap_date(730))],
-    }
-    return recipes.get(name)
+    }.get(name)
 
 
 def run_recipe(name):
     searches = recipe_searches(name)
     if searches is None:
         return None
-    groups = []
-    for criteria in searches:
-        args = []
-        for index, part in enumerate(criteria):
-            if index % 2 == 1 and not re.match(r"\d{1,2}-[A-Za-z]{3}-\d{4}", part):
-                args.append(f'"{part}"')
-            else:
-                args.append(part)
-        groups.append(search_ids(*args))
-    return unique_ids(groups)
+    return unique_ids([search_ids(*quote_criteria(criteria)) for criteria in searches])
 
 
 def summarize_email(msg_id, matched_by=None):
@@ -222,18 +207,8 @@ def summarize_email(msg_id, matched_by=None):
     subject = decode_email_header(msg.get("Subject", ""))
     sender = decode_email_header(msg.get("From", ""))
     body = get_email_body(msg)
-    unsub_links = find_unsubscribe_links(body)
-    return {
-        "id": msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id),
-        "subject": subject,
-        "sender": sender,
-        "sender_domain": sender_domain(sender),
-        "date": msg.get("Date", ""),
-        "snippet": body[:240] if body else "(No content)",
-        "has_unsubscribe": bool(unsub_links),
-        "unsubscribe_links": unsub_links,
-        "matched_by": matched_by or "Search result",
-    }
+    links = find_unsubscribe_links(body)
+    return {"id": msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id), "subject": subject, "sender": sender, "sender_domain": sender_domain(sender), "date": msg.get("Date", ""), "snippet": body[:240] if body else "(No content)", "has_unsubscribe": bool(links), "unsubscribe_links": links, "matched_by": matched_by or "Search result"}
 
 
 def move_to_trash(msg_id):
@@ -276,7 +251,6 @@ def connect():
     except imaplib.IMAP4.error as exc:
         return jsonify({"success": False, "error": f"Yahoo authentication failed. Use a Yahoo app password. Details: {exc}"}), 401
     except Exception as exc:
-        logger.error("Connection failed: %s", exc)
         return jsonify({"success": False, "error": f"Connection failed: {exc}"}), 500
 
 
