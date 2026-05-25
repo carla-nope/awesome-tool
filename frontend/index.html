@@ -6,526 +6,101 @@
   <title>Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    :root { --pink:#ff4fd8; --yellow:#fff34f; --green:#6cff7d; --blue:#51d8ff; --purple:#b45cff; --orange:#ff9f1c; }
-    body { color:#050505; background: linear-gradient(135deg, #ff4fd8 0%, #fff34f 22%, #6cff7d 44%, #51d8ff 66%, #b45cff 86%, #ff9f1c 100%); background-attachment: fixed; }
-    .rainbow-card { background: rgba(255,255,255,.88); border: 4px solid #050505; box-shadow: 8px 8px 0 #050505; }
-    .black-btn { background:#050505; color:#fff; border:3px solid #050505; box-shadow:4px 4px 0 var(--yellow); }
-    .black-btn:hover { transform: translate(-1px,-1px); box-shadow:5px 5px 0 var(--pink); }
-    .neon-btn { background: var(--yellow); color:#050505; border:3px solid #050505; box-shadow:4px 4px 0 var(--pink); }
-    .neon-btn:hover { background: var(--green); box-shadow:4px 4px 0 var(--purple); }
-    .danger-btn { background:#ff4f6d; color:#050505; border:3px solid #050505; box-shadow:4px 4px 0 #fff34f; }
-    .pill { border:3px solid #050505; color:#050505; background:#fff; }
-    .meter { height:16px; border:3px solid #050505; background:#fff; overflow:hidden; border-radius:999px; }
-    .meter-fill { height:100%; width:0%; background: linear-gradient(90deg, var(--pink), var(--yellow), var(--green), var(--blue), var(--purple)); transition: width .35s ease; }
-    .busy-stripes { background-image: linear-gradient(45deg, rgba(0,0,0,.12) 25%, transparent 25%, transparent 50%, rgba(0,0,0,.12) 50%, rgba(0,0,0,.12) 75%, transparent 75%, transparent); background-size: 28px 28px; animation: stripes 1s linear infinite; }
-    @keyframes stripes { from { background-position: 0 0; } to { background-position: 28px 0; } }
-    .wiggle { animation: wiggle .35s ease-in-out; }
-    @keyframes wiggle { 0%,100%{ transform:rotate(0deg)} 25%{transform:rotate(-1.5deg)} 75%{transform:rotate(1.5deg)} }
+    :root{--pink:#ff4fd8;--yellow:#fff34f;--green:#6cff7d;--blue:#51d8ff;--purple:#b45cff;--orange:#ff9f1c;--black:#050505}
+    body{color:var(--black);background:linear-gradient(135deg,var(--pink),var(--yellow),var(--green),var(--blue),var(--purple),var(--orange));background-attachment:fixed}
+    .card{background:rgba(255,255,255,.9);border:4px solid var(--black);box-shadow:8px 8px 0 var(--black)}
+    .btn{border:3px solid var(--black);box-shadow:4px 4px 0 var(--pink);font-weight:900;border-radius:14px;padding:.6rem .9rem;background:var(--yellow);color:var(--black)}
+    .btn:hover{background:var(--green);transform:translate(-1px,-1px)}
+    .btn-dark{background:var(--black);color:white;box-shadow:4px 4px 0 var(--yellow)}
+    .btn-danger{background:#ff5d73;color:var(--black);box-shadow:4px 4px 0 var(--yellow)}
+    .pill{border:3px solid var(--black);border-radius:14px;background:white;color:var(--black);font-weight:900}
+    .meter{height:17px;border:3px solid var(--black);background:white;overflow:hidden;border-radius:999px}.fill{height:100%;width:0%;background:linear-gradient(90deg,var(--pink),var(--yellow),var(--green),var(--blue),var(--purple));transition:width .25s ease}
+    .busy{background-image:linear-gradient(45deg,rgba(0,0,0,.18) 25%,transparent 25%,transparent 50%,rgba(0,0,0,.18) 50%,rgba(0,0,0,.18) 75%,transparent 75%,transparent);background-size:26px 26px;animation:stripes .8s linear infinite}@keyframes stripes{to{background-position:26px 0}}
+    .confetti{position:fixed;width:10px;height:16px;top:-20px;z-index:9999;pointer-events:none;animation:fall 1.8s linear forwards}@keyframes fall{to{transform:translateY(105vh) rotate(720deg);opacity:.15}}
   </style>
 </head>
 <body class="min-h-screen">
-  <main class="max-w-7xl mx-auto p-4 md:p-6">
-    <section class="rainbow-card rounded-3xl p-5 mb-5">
-      <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-        <div>
-          <h1 class="text-3xl md:text-4xl font-black leading-tight">Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use</h1>
-          <p class="font-bold mt-2">Search, quick-pick cleanup, sender cleanup, unsubscribe-link review, progress bars, and trashing victory noises.</p>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <span id="statusBadge" class="pill text-sm px-3 py-2 rounded-xl font-bold">Not connected</span>
-          <button id="soundBtn" class="neon-btn px-3 py-2 rounded-xl text-sm font-black">Sound: On</button>
-          <button id="disconnectBtn" class="hidden neon-btn px-3 py-2 rounded-xl text-sm font-black">Disconnect</button>
-        </div>
+<main class="max-w-7xl mx-auto p-4 md:p-6">
+  <section class="card rounded-3xl p-5 mb-5">
+    <div class="flex flex-col lg:flex-row lg:justify-between gap-4">
+      <div><h1 class="text-3xl md:text-4xl font-black">Carla's Awesome Yahoo Cleaner That Gus is Allowed to Use</h1><p class="font-bold mt-2">Preview first. Move selected messages to Trash. Enjoy unnecessary but emotionally important victory noises.</p></div>
+      <div class="flex flex-wrap gap-2 items-start"><span id="statusBadge" class="pill px-3 py-2">Not connected</span><button id="soundBtn" class="btn">Sound: On</button><button id="disconnectBtn" class="btn hidden">Disconnect</button></div>
+    </div>
+    <form id="loginForm" class="grid md:grid-cols-[1fr_1fr_auto] gap-3 mt-5">
+      <input id="emailInput" type="email" required placeholder="Yahoo email" class="border-4 border-black rounded-xl px-3 py-2 font-bold" />
+      <input id="passwordInput" type="password" required placeholder="Yahoo app password" class="border-4 border-black rounded-xl px-3 py-2 font-bold" />
+      <button id="connectBtn" class="btn btn-dark">Connect</button>
+    </form>
+    <p class="text-sm font-bold mt-2">Use a Yahoo app password, not the regular Yahoo password.</p>
+    <div id="notice" class="hidden mt-3 border-4 border-black rounded-xl p-3 font-black"></div>
+  </section>
+
+  <section id="progressPanel" class="card rounded-3xl p-4 mb-5 hidden">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div><p id="busyLabel" class="font-black text-lg">Ready</p><p id="busySub" class="font-bold text-sm">Use Load counts first for the smoothest cleanup session.</p></div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+        <div class="pill p-2"><div class="text-xs">Inbox estimate now</div><div id="currentTotal" class="text-2xl">-</div></div>
+        <div class="pill p-2"><div class="text-xs">Starting estimate</div><div id="startingTotal" class="text-2xl">-</div></div>
+        <div class="pill p-2"><div class="text-xs">Trashed today</div><div id="trashedTotal" class="text-2xl">0</div></div>
+        <div class="pill p-2"><div class="text-xs">Selected</div><div id="selectedCountTop" class="text-2xl">0</div></div>
       </div>
+    </div>
+    <div class="meter mt-4"><div id="mainProgress" class="fill"></div></div>
+    <p class="text-xs font-bold mt-2">Inbox totals are estimates from Yahoo IMAP. They may lag after moving messages, but the Trashed today number is your session score.</p>
+  </section>
 
-      <form id="loginForm" class="grid md:grid-cols-[1fr_1fr_auto] gap-3 mt-5">
-        <input id="emailInput" type="email" required placeholder="Yahoo email" class="border-4 border-black rounded-xl px-3 py-2 font-bold" />
-        <input id="passwordInput" type="password" required placeholder="Yahoo app password" class="border-4 border-black rounded-xl px-3 py-2 font-bold" />
-        <button id="connectBtn" class="black-btn rounded-xl px-5 py-2 font-black">Connect</button>
-      </form>
-      <p class="text-sm font-bold mt-2">Use a Yahoo app password. The app does not need your regular Yahoo password.</p>
-      <div id="notice" class="hidden mt-3 text-sm rounded-xl px-3 py-2 border-4 border-black font-bold"></div>
-    </section>
-
-    <section id="progressPanel" class="rainbow-card rounded-3xl p-4 mb-5 hidden">
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <p id="busyLabel" class="font-black text-lg">Ready</p>
-          <p id="busySub" class="text-sm font-bold">Pick a cleanup button or run a search.</p>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-          <div class="pill rounded-xl p-2"><div class="text-xs font-black">Inbox now</div><div id="currentTotal" class="text-2xl font-black">-</div></div>
-          <div class="pill rounded-xl p-2"><div class="text-xs font-black">Started at</div><div id="startingTotal" class="text-2xl font-black">-</div></div>
-          <div class="pill rounded-xl p-2"><div class="text-xs font-black">Trashed today</div><div id="trashedTotal" class="text-2xl font-black">0</div></div>
-          <div class="pill rounded-xl p-2"><div class="text-xs font-black">Selected</div><div id="selectedCountTop" class="text-2xl font-black">0</div></div>
-        </div>
+  <section id="app" class="hidden grid xl:grid-cols-[360px_1fr] gap-5">
+    <aside class="space-y-5">
+      <div class="card rounded-3xl p-4 relative">
+        <div class="bg-pink-200 border-4 border-black rounded-2xl p-3 mb-3 font-black">Start here ↓ Click <span class="underline">Load counts</span> first. The rest of the app behaves better after it knows what is in each bucket.</div>
+        <div class="flex items-center justify-between gap-2 mb-3"><h2 class="font-black text-xl">Quick picks</h2><button id="countBtn" class="btn">Load counts</button></div>
+        <div id="quickPicks" class="space-y-2"></div>
       </div>
-      <div class="meter mt-4"><div id="mainProgress" class="meter-fill"></div></div>
+      <div class="card rounded-3xl p-4"><h2 class="font-black text-xl mb-3">Manual search</h2><div class="space-y-2">
+        <input id="searchQuery" placeholder="Body/text contains" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold" />
+        <input id="searchSubject" placeholder="Subject contains" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold" />
+        <input id="searchSender" placeholder="From contains" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold" />
+        <div class="grid grid-cols-2 gap-2"><input id="searchSince" type="date" class="border-4 border-black rounded-xl px-3 py-2 font-bold" /><input id="searchBefore" type="date" class="border-4 border-black rounded-xl px-3 py-2 font-bold" /></div>
+        <select id="readState" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold"><option value="">Read or unread</option><option value="unread">Unread only</option><option value="read">Read only</option></select>
+        <button id="searchBtn" class="btn btn-dark w-full">Search</button>
+      </div></div>
+      <div class="card rounded-3xl p-4"><h2 class="font-black text-xl mb-3">Sender tools</h2><button id="topSendersBtn" class="btn w-full mb-2">Find top senders</button><button id="unsubscribeFinderBtn" class="btn w-full">Find unsubscribe links</button></div>
+    </aside>
+    <section class="card rounded-3xl overflow-hidden">
+      <div class="p-4 border-b-4 border-black bg-white/70 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><h2 id="resultsTitle" class="font-black text-2xl">Results</h2><p id="resultsSub" class="font-bold text-sm">Connect, load counts, then choose a cleanup bucket.</p></div><div class="flex flex-wrap gap-2"><button id="selectVisibleBtn" class="btn">Select visible</button><button id="clearSelectedBtn" class="btn">Clear</button><button id="moveSelectedBtn" class="btn btn-danger">Move selected to Trash</button></div></div>
+      <div class="px-4 py-3 border-b-4 border-black bg-white/80 flex flex-col md:flex-row md:items-center md:justify-between gap-2 font-black"><span id="selectedCount">0 selected</span><span id="trashFolder">Trash folder: not checked</span></div>
+      <div id="results" class="divide-y-4 divide-black/20 min-h-[520px] bg-white/85"></div>
     </section>
-
-    <section id="app" class="hidden grid xl:grid-cols-[350px_1fr] gap-5">
-      <aside class="space-y-5">
-        <div class="rainbow-card rounded-3xl p-4">
-          <div class="flex items-center justify-between mb-3 gap-2">
-            <h2 class="font-black text-xl">Quick picks</h2>
-            <button id="countBtn" class="neon-btn text-sm px-3 py-2 rounded-xl font-black">Load counts</button>
-          </div>
-          <div id="quickPicks" class="space-y-2"></div>
-        </div>
-
-        <div class="rainbow-card rounded-3xl p-4">
-          <h2 class="font-black text-xl mb-3">Manual search</h2>
-          <div class="space-y-2">
-            <input id="searchQuery" placeholder="Body/text contains" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold" />
-            <input id="searchSubject" placeholder="Subject contains" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold" />
-            <input id="searchSender" placeholder="From contains" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold" />
-            <div class="grid grid-cols-2 gap-2">
-              <input id="searchSince" type="date" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold" />
-              <input id="searchBefore" type="date" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold" />
-            </div>
-            <select id="readState" class="w-full border-4 border-black rounded-xl px-3 py-2 font-bold">
-              <option value="">Read or unread</option>
-              <option value="unread">Unread only</option>
-              <option value="read">Read only</option>
-            </select>
-            <button id="searchBtn" class="black-btn w-full rounded-xl px-4 py-2 font-black">Search</button>
-          </div>
-        </div>
-
-        <div class="rainbow-card rounded-3xl p-4">
-          <h2 class="font-black text-xl mb-3">Sender tools</h2>
-          <button id="topSendersBtn" class="neon-btn w-full rounded-xl px-4 py-2 font-black mb-2">Find top senders</button>
-          <button id="unsubscribeFinderBtn" class="neon-btn w-full rounded-xl px-4 py-2 font-black">Find unsubscribe links</button>
-        </div>
-      </aside>
-
-      <section class="rainbow-card rounded-3xl overflow-hidden">
-        <div class="p-4 border-b-4 border-black flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-white/70">
-          <div>
-            <h2 id="resultsTitle" class="font-black text-2xl">Results</h2>
-            <p id="resultsSub" class="text-sm font-bold">Connect, then choose a quick pick or run a search.</p>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <button id="selectVisibleBtn" class="neon-btn px-3 py-2 rounded-xl text-sm font-black">Select visible</button>
-            <button id="clearSelectedBtn" class="neon-btn px-3 py-2 rounded-xl text-sm font-black">Clear</button>
-            <button id="moveSelectedBtn" class="danger-btn px-3 py-2 rounded-xl text-sm font-black">Move selected to Trash</button>
-          </div>
-        </div>
-        <div class="px-4 py-3 border-b-4 border-black flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-sm font-black bg-white/80">
-          <span id="selectedCount">0 selected</span>
-          <span id="trashFolder">Trash folder: not checked</span>
-        </div>
-        <div id="results" class="divide-y-4 divide-black/20 min-h-[500px] bg-white/80"></div>
-      </section>
-    </section>
-  </main>
-
-  <script>
-    const API_BASE = 'https://awesome-tool-production.up.railway.app';
-
-    const quickPickGroups = [
-      ['Quick wins', [
-        ['verification_codes', 'Verification codes', 'Login codes, passcodes, authentication notices'],
-        ['password_resets', 'Password resets', 'Password reset and account access emails'],
-        ['noreply', 'No-reply senders', 'Automated no-reply and do-not-reply senders']
-      ]],
-      ['Shopping', [
-        ['receipts', 'Receipts & orders', 'Receipts, invoices, purchases, order confirmations'],
-        ['shipping', 'Shipping & delivery', 'Shipping, tracking, delivery notifications'],
-        ['carts', 'Abandoned carts', 'Cart reminders and checkout nudges'],
-        ['old_receipts_2y', 'Receipts older than 2 years', 'Old receipts and invoices']
-      ]],
-      ['Marketing', [
-        ['newsletters', 'Newsletters', 'Newsletters, digests, weekly updates'],
-        ['promotions', 'Promotions', 'Sales, deals, coupons, offers'],
-        ['trials', 'Trials & renewals', 'Trial, expired, renewal, subscription messages'],
-        ['old_promotions_6m', 'Promotions older than 6 months', 'Older sales and coupon emails']
-      ]],
-      ['Old email', [
-        ['old_unread_1y', 'Unread older than 1 year', 'Unread email before last year'],
-        ['old_unread_2y', 'Unread older than 2 years', 'Very old unread email'],
-        ['old_read_2y', 'Read older than 2 years', 'Old read email'],
-        ['old_read_5y', 'Read older than 5 years', 'Very old read email']
-      ]],
-      ['Social & apps', [['social', 'Social/app alerts', 'Follows, likes, mentions, comments, app alerts']]]
-    ];
-
-    const state = {
-      connected: false,
-      emails: [],
-      selected: new Set(),
-      counts: {},
-      currentRecipe: null,
-      startTotal: null,
-      currentTotal: null,
-      trashed: 0,
-      sound: true,
-      busyTimer: null
-    };
-
-    const $ = id => document.getElementById(id);
-
-    function playSound(type = 'pop') {
-      if (!state.sound) return;
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const now = ctx.currentTime;
-        const tones = type === 'trash' ? [523, 659, 784, 1046] : type === 'success' ? [659, 880] : type === 'error' ? [180, 120] : [660];
-        tones.forEach((freq, i) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'square';
-          osc.frequency.value = freq;
-          gain.gain.setValueAtTime(0.045, now + i * 0.06);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.08);
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(now + i * 0.06); osc.stop(now + i * 0.06 + 0.09);
-        });
-      } catch (e) {}
-    }
-
-    function notice(text, type = 'info') {
-      const box = $('notice');
-      const cls = type === 'error' ? 'bg-red-200' : type === 'success' ? 'bg-green-200' : 'bg-blue-200';
-      box.className = `mt-3 text-sm rounded-xl px-3 py-2 border-4 border-black font-black ${cls}`;
-      box.textContent = text;
-      box.classList.remove('hidden');
-      if (type === 'error') playSound('error');
-    }
-
-    function setBusy(isBusy, label = 'Working...', sub = 'Yahoo can be slow. This means the app is still doing something.') {
-      clearInterval(state.busyTimer);
-      $('busyLabel').textContent = isBusy ? label : 'Ready';
-      $('busySub').textContent = isBusy ? sub : 'Pick a cleanup button or run a search.';
-      const bar = $('mainProgress');
-      if (isBusy) {
-        let pct = 8;
-        bar.classList.add('busy-stripes');
-        bar.style.width = pct + '%';
-        state.busyTimer = setInterval(() => {
-          pct = Math.min(92, pct + Math.max(1, (94 - pct) * 0.08));
-          bar.style.width = pct + '%';
-        }, 350);
-      } else {
-        bar.classList.remove('busy-stripes');
-        bar.style.width = '100%';
-        setTimeout(() => { bar.style.width = '0%'; }, 700);
-      }
-    }
-
-    async function callApi(path, options = {}) {
-      try {
-        const res = await fetch(API_BASE + path, options);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Request failed');
-        return data;
-      } catch (err) {
-        if (err && err.message === 'Failed to fetch') {
-          throw new Error('Could not reach the Railway backend. Check Railway, then refresh this page.');
-        }
-        throw err;
-      }
-    }
-
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text || '';
-      return div.innerHTML;
-    }
-
-    function updateCounters() {
-      $('selectedCount').textContent = `${state.selected.size} selected`;
-      $('selectedCountTop').textContent = state.selected.size;
-      $('trashedTotal').textContent = state.trashed;
-      $('startingTotal').textContent = state.startTotal ?? '-';
-      $('currentTotal').textContent = state.currentTotal ?? '-';
-    }
-
-    async function refreshStats() {
-      try {
-        const data = await callApi('/api/stats');
-        if (typeof data.total_emails === 'number') {
-          if (state.startTotal === null) state.startTotal = data.total_emails;
-          state.currentTotal = data.total_emails;
-        }
-        if (data.trash_folder) $('trashFolder').textContent = `Trash folder: ${data.trash_folder}`;
-        updateCounters();
-      } catch (err) {
-        // Stats need a connection, so ignore quietly when unavailable.
-      }
-    }
-
-    function decrementCounts(moved) {
-      if (!moved) return;
-      state.trashed += moved;
-      if (typeof state.currentTotal === 'number') state.currentTotal = Math.max(0, state.currentTotal - moved);
-      if (state.currentRecipe && typeof state.counts[state.currentRecipe] === 'number') {
-        state.counts[state.currentRecipe] = Math.max(0, state.counts[state.currentRecipe] - moved);
-        renderQuickPicks();
-      }
-      updateCounters();
-    }
-
-    function renderQuickPicks() {
-      $('quickPicks').innerHTML = quickPickGroups.map(([group, items]) => `
-        <div class="pt-3 first:pt-0">
-          <p class="text-xs font-black uppercase tracking-wide mb-1">${group}</p>
-          <div class="space-y-2">
-            ${items.map(([key, label, desc]) => `
-              <button data-key="${key}" class="quick-btn w-full text-left p-3 rounded-2xl border-4 border-black bg-white hover:bg-yellow-100 font-bold shadow-[4px_4px_0_#050505]">
-                <div class="flex items-center justify-between gap-3">
-                  <span>${label}</span>
-                  <span class="pill text-xs px-2 py-0.5 rounded-full font-black">${state.counts[key] ?? '-'}</span>
-                </div>
-                <p class="text-xs mt-1">${desc}</p>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-      `).join('');
-      document.querySelectorAll('.quick-btn').forEach(btn => btn.addEventListener('click', () => loadQuickPick(btn.dataset.key)));
-    }
-
-    function renderEmails() {
-      updateCounters();
-      if (!state.emails.length) {
-        $('results').innerHTML = '<div class="p-10 text-center font-black">No messages to show.</div>';
-        return;
-      }
-      $('results').innerHTML = state.emails.map(mail => `
-        <label class="block p-4 hover:bg-yellow-100 cursor-pointer ${state.selected.has(mail.id) ? 'bg-green-200 wiggle' : 'bg-white/70'}">
-          <div class="flex gap-3">
-            <input data-id="${mail.id}" type="checkbox" class="email-check mt-1 h-5 w-5 accent-pink-500" ${state.selected.has(mail.id) ? 'checked' : ''} />
-            <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center gap-2 mb-1">
-                <span class="font-black truncate max-w-xl">${escapeHtml((mail.sender || 'Unknown').split('<')[0].trim())}</span>
-                ${mail.has_unsubscribe ? '<span class="pill text-xs px-2 py-0.5 rounded-full font-black bg-yellow-200">unsubscribe link</span>' : ''}
-                <span class="pill text-xs px-2 py-0.5 rounded-full font-black bg-cyan-200">${escapeHtml(mail.matched_by || '')}</span>
-              </div>
-              <p class="text-sm font-bold truncate">${escapeHtml(mail.subject || '(No subject)')}</p>
-              <p class="text-xs mt-1 truncate">${escapeHtml(mail.snippet || '')}</p>
-              <p class="text-xs mt-1 font-bold">${escapeHtml(mail.date || '')}</p>
-              ${mail.unsubscribe_links && mail.unsubscribe_links.length ? `<div class="mt-2 space-y-1">${mail.unsubscribe_links.map(link => `<a class="block text-xs font-black underline truncate" target="_blank" href="${escapeHtml(link)}">Open unsubscribe link: ${escapeHtml(link)}</a>`).join('')}</div>` : ''}
-            </div>
-          </div>
-        </label>
-      `).join('');
-      document.querySelectorAll('.email-check').forEach(box => box.addEventListener('change', e => {
-        const id = e.target.dataset.id;
-        if (e.target.checked) { state.selected.add(id); playSound('pop'); }
-        else state.selected.delete(id);
-        renderEmails();
-      }));
-    }
-
-    function renderSenderGroups(groups, title, sub) {
-      state.emails = [];
-      state.selected.clear();
-      state.currentRecipe = null;
-      updateCounters();
-      $('resultsTitle').textContent = title;
-      $('resultsSub').textContent = sub;
-      if (!groups.length) {
-        $('results').innerHTML = '<div class="p-10 text-center font-black">No sender groups found.</div>';
-        return;
-      }
-      $('results').innerHTML = groups.map(group => `
-        <div class="p-4 hover:bg-yellow-100 bg-white/70">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
-              <p class="font-black text-lg">${escapeHtml(group.domain || group.sender || 'Unknown sender')}</p>
-              <p class="text-sm font-bold">${escapeHtml(group.sender || '')}</p>
-              ${group.samples ? `<ul class="mt-2 text-xs font-bold list-disc list-inside">${group.samples.map(s => `<li>${escapeHtml(typeof s === 'string' ? s : s.subject)}</li>`).join('')}</ul>` : ''}
-              ${group.links ? `<div class="mt-2 space-y-1">${group.links.map(link => `<a target="_blank" class="block text-xs font-black underline truncate" href="${escapeHtml(link)}">Open unsubscribe link: ${escapeHtml(link)}</a>`).join('')}</div>` : ''}
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="pill rounded-full px-3 py-1 font-black">${group.count} found</span>
-              <button data-sender="${escapeHtml(group.domain || group.sender)}" class="sender-preview neon-btn px-3 py-2 rounded-xl text-sm font-black">Preview sender</button>
-            </div>
-          </div>
-        </div>
-      `).join('');
-      document.querySelectorAll('.sender-preview').forEach(btn => btn.addEventListener('click', () => previewSender(btn.dataset.sender)));
-    }
-
-    async function connect(e) {
-      e.preventDefault();
-      $('connectBtn').disabled = true;
-      $('connectBtn').textContent = 'Connecting...';
-      setBusy(true, 'Connecting to Yahoo...', 'Logging in through the Railway backend.');
-      try {
-        const data = await callApi('/api/connect', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: $('emailInput').value, password: $('passwordInput').value })
-        });
-        state.connected = true;
-        $('statusBadge').textContent = `Connected: ${data.email}`;
-        $('statusBadge').className = 'pill text-sm px-3 py-2 rounded-xl font-black bg-green-200';
-        $('disconnectBtn').classList.remove('hidden');
-        $('app').classList.remove('hidden');
-        $('progressPanel').classList.remove('hidden');
-        notice('Connected. Pick a quick button and watch the numbers shrink.', 'success');
-        playSound('success');
-        await refreshStats();
-        await checkFolders();
-      } catch (err) {
-        notice(err.message, 'error');
-      } finally {
-        setBusy(false);
-        $('connectBtn').disabled = false;
-        $('connectBtn').textContent = 'Connect';
-      }
-    }
-
-    async function checkFolders() {
-      try {
-        const data = await callApi('/api/folders');
-        $('trashFolder').textContent = `Trash folder: ${data.trash_folder || 'Trash'}`;
-      } catch (err) { $('trashFolder').textContent = 'Trash folder: not detected'; }
-    }
-
-    async function loadCounts() {
-      $('countBtn').disabled = true;
-      $('countBtn').textContent = 'Counting...';
-      setBusy(true, 'Counting quick picks...', 'Yahoo is checking each category. This can take a bit.');
-      try {
-        const data = await callApi('/api/quick-pick-counts');
-        state.counts = data.counts || {};
-        renderQuickPicks();
-        notice('Counts loaded. Now trashing things will shrink the numbers.', 'success');
-        playSound('success');
-      } catch (err) { notice(err.message, 'error'); }
-      finally { setBusy(false); $('countBtn').disabled = false; $('countBtn').textContent = 'Load counts'; }
-    }
-
-    async function loadQuickPick(key) {
-      state.selected.clear();
-      state.currentRecipe = key;
-      $('resultsTitle').textContent = key.replaceAll('_', ' ');
-      $('resultsSub').textContent = 'Loading preview...';
-      $('results').innerHTML = '<div class="p-10 text-center font-black">Loading Yahoo preview... progress bar is moving because Yahoo is thinking.</div>';
-      setBusy(true, `Loading ${key.replaceAll('_', ' ')}...`, 'Fetching matching emails. Larger mailboxes may be slow.');
-      try {
-        const data = await callApi(`/api/quick-pick/${encodeURIComponent(key)}?limit=75`);
-        state.emails = data.emails || [];
-        $('resultsSub').textContent = `Showing ${data.shown || state.emails.length} of ${data.total || 0}. Review before moving anything.`;
-        renderEmails();
-        playSound('pop');
-      } catch (err) { state.emails = []; renderEmails(); notice(err.message, 'error'); }
-      finally { setBusy(false); }
-    }
-
-    async function manualSearch() {
-      state.selected.clear();
-      state.currentRecipe = null;
-      $('resultsTitle').textContent = 'Manual search';
-      $('resultsSub').textContent = 'Loading preview...';
-      $('results').innerHTML = '<div class="p-10 text-center font-black">Searching Yahoo...</div>';
-      setBusy(true, 'Searching Yahoo...', 'Searching your inbox with the filters you entered.');
-      try {
-        const data = await callApi('/api/search', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: $('searchQuery').value, subject: $('searchSubject').value, sender: $('searchSender').value, since: $('searchSince').value, before: $('searchBefore').value, read_state: $('readState').value, limit: 75 })
-        });
-        state.emails = data.emails || [];
-        $('resultsSub').textContent = `Showing ${data.shown || state.emails.length} of ${data.total || 0}. Review before moving anything.`;
-        renderEmails();
-        playSound('pop');
-      } catch (err) { notice(err.message, 'error'); }
-      finally { setBusy(false); }
-    }
-
-    async function moveSelected() {
-      const ids = Array.from(state.selected);
-      if (!ids.length) return notice('Select messages first.', 'error');
-      if (!confirm(`Move ${ids.length} selected message(s) to Yahoo Trash?`)) return;
-      $('moveSelectedBtn').disabled = true;
-      $('moveSelectedBtn').textContent = 'Moving...';
-      setBusy(true, `Moving ${ids.length} message(s) to Trash...`, 'Do not refresh. Yahoo is moving the selected messages.');
-      try {
-        const data = await callApi('/api/move-to-trash', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email_ids: ids }) });
-        const movedCount = data.moved || data.deleted || 0;
-        const moved = new Set(ids);
-        state.emails = state.emails.filter(mail => !moved.has(mail.id));
-        state.selected.clear();
-        decrementCounts(movedCount);
-        renderEmails();
-        notice(data.message || `Moved ${movedCount} messages.`, data.failed && data.failed.length ? 'error' : 'success');
-        playSound('trash');
-        setTimeout(refreshStats, 1500);
-      } catch (err) { notice(err.message, 'error'); }
-      finally { setBusy(false); $('moveSelectedBtn').disabled = false; $('moveSelectedBtn').textContent = 'Move selected to Trash'; }
-    }
-
-    async function loadTopSenders() {
-      state.currentRecipe = null;
-      $('resultsTitle').textContent = 'Top senders';
-      $('resultsSub').textContent = 'Sampling recent inbox messages...';
-      $('results').innerHTML = '<div class="p-10 text-center font-black">Building sender list...</div>';
-      setBusy(true, 'Finding top senders...', 'Sampling recent inbox messages and grouping senders.');
-      try {
-        const data = await callApi('/api/top-senders?sample=600');
-        renderSenderGroups(data.senders || [], 'Top senders', `Sampled ${data.sampled || 0} recent messages. Preview a sender before moving anything.`);
-        playSound('success');
-      } catch (err) { notice(err.message, 'error'); }
-      finally { setBusy(false); }
-    }
-
-    async function loadUnsubscribeFinder() {
-      state.currentRecipe = null;
-      $('resultsTitle').textContent = 'Unsubscribe finder';
-      $('resultsSub').textContent = 'Scanning recent inbox messages for unsubscribe links...';
-      $('results').innerHTML = '<div class="p-10 text-center font-black">Finding unsubscribe links...</div>';
-      setBusy(true, 'Finding unsubscribe links...', 'Scanning recent messages for unsubscribe URLs.');
-      try {
-        const data = await callApi('/api/unsubscribe-finder?sample=300');
-        renderSenderGroups(data.groups || [], 'Unsubscribe finder', `Sampled ${data.sampled || 0} recent messages. Open unsubscribe links manually, then preview sender if you want cleanup.`);
-        playSound('success');
-      } catch (err) { notice(err.message, 'error'); }
-      finally { setBusy(false); }
-    }
-
-    async function previewSender(sender) {
-      state.selected.clear();
-      state.currentRecipe = null;
-      $('resultsTitle').textContent = `Sender: ${sender}`;
-      $('resultsSub').textContent = 'Loading sender preview...';
-      $('results').innerHTML = '<div class="p-10 text-center font-black">Loading sender messages...</div>';
-      setBusy(true, `Loading ${sender}...`, 'Fetching messages from this sender.');
-      try {
-        const data = await callApi(`/api/sender/${encodeURIComponent(sender)}?limit=75`);
-        state.emails = data.emails || [];
-        $('resultsSub').textContent = `Showing ${data.shown || state.emails.length} of ${data.total || 0}. Review before moving anything.`;
-        renderEmails();
-        playSound('pop');
-      } catch (err) { notice(err.message, 'error'); }
-      finally { setBusy(false); }
-    }
-
-    async function disconnect() {
-      try { await callApi('/api/disconnect', { method: 'POST' }); } catch (err) {}
-      state.connected = false; state.emails = []; state.selected.clear(); state.currentRecipe = null;
-      $('statusBadge').textContent = 'Not connected';
-      $('statusBadge').className = 'pill text-sm px-3 py-2 rounded-xl font-black';
-      $('disconnectBtn').classList.add('hidden');
-      $('app').classList.add('hidden');
-      $('progressPanel').classList.add('hidden');
-      renderEmails(); notice('Disconnected.', 'info');
-    }
-
-    $('loginForm').addEventListener('submit', connect);
-    $('disconnectBtn').addEventListener('click', disconnect);
-    $('soundBtn').addEventListener('click', () => { state.sound = !state.sound; $('soundBtn').textContent = `Sound: ${state.sound ? 'On' : 'Off'}`; if (state.sound) playSound('success'); });
-    $('countBtn').addEventListener('click', loadCounts);
-    $('searchBtn').addEventListener('click', manualSearch);
-    $('selectVisibleBtn').addEventListener('click', () => { state.emails.forEach(mail => state.selected.add(mail.id)); renderEmails(); playSound('pop'); });
-    $('clearSelectedBtn').addEventListener('click', () => { state.selected.clear(); renderEmails(); });
-    $('moveSelectedBtn').addEventListener('click', moveSelected);
-    $('topSendersBtn').addEventListener('click', loadTopSenders);
-    $('unsubscribeFinderBtn').addEventListener('click', loadUnsubscribeFinder);
-
-    renderQuickPicks();
-    renderEmails();
-  </script>
+  </section>
+</main>
+<script>
+const API_BASE='https://awesome-tool-production.up.railway.app';
+const groups=[['Quick wins',[['verification_codes','Verification codes','Login codes and passcodes'],['password_resets','Password resets','Password reset and account access emails'],['noreply','No-reply senders','Automated no-reply senders']]],['Shopping',[['receipts','Receipts & orders','Receipts, invoices, purchases'],['shipping','Shipping & delivery','Tracking and delivery notices'],['carts','Abandoned carts','Cart reminders'],['old_receipts_2y','Receipts older than 2 years','Older receipts and invoices']]],['Marketing',[['newsletters','Newsletters','Newsletters, digests, weekly updates'],['promotions','Promotions','Sales, deals, coupons, offers'],['trials','Trials & renewals','Trial and subscription emails'],['old_promotions_6m','Promotions older than 6 months','Older sales and coupons']]],['Old email',[['old_unread_1y','Unread older than 1 year','Old unread messages'],['old_unread_2y','Unread older than 2 years','Very old unread messages'],['old_read_2y','Read older than 2 years','Old read messages'],['old_read_5y','Read older than 5 years','Very old read messages']]],['Social & apps', [['social','Social/app alerts','Follows, likes, comments, app alerts']]]];
+const state={emails:[],selected:new Set(),counts:{},currentRecipe:null,startTotal:null,currentTotal:null,trashed:0,sound:true,busyTimer:null};
+const $=id=>document.getElementById(id);
+function sound(type='pop'){if(!state.sound)return;try{const c=new(window.AudioContext||window.webkitAudioContext)(),n=c.currentTime;const bank={pop:[740],success:[659,880,1175],trash:[392,523,659,784,1046],coin:[988,1319],error:[180,120],sparkle:[1046,1319,1568,2093],fanfare:[523,659,784,1046,1319]};(bank[type]||bank.pop).forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.type=i%2?'triangle':'square';o.frequency.value=f;g.gain.setValueAtTime(.05,n+i*.055);g.gain.exponentialRampToValueAtTime(.001,n+i*.055+.09);o.connect(g);g.connect(c.destination);o.start(n+i*.055);o.stop(n+i*.055+.1)})}catch(e){}}
+function confetti(count=50){const colors=['#ff4fd8','#fff34f','#6cff7d','#51d8ff','#b45cff','#ff9f1c'];for(let i=0;i<count;i++){const p=document.createElement('div');p.className='confetti';p.style.left=Math.random()*100+'vw';p.style.background=colors[Math.floor(Math.random()*colors.length)];p.style.transform=`rotate(${Math.random()*360}deg)`;p.style.animationDuration=(1.2+Math.random()*1.4)+'s';document.body.appendChild(p);setTimeout(()=>p.remove(),2800)}}
+function notice(t,type='info'){const b=$('notice');b.className='mt-3 border-4 border-black rounded-xl p-3 font-black '+(type==='error'?'bg-red-200':type==='success'?'bg-green-200':'bg-blue-200');b.textContent=t;b.classList.remove('hidden');if(type==='error')sound('error')}
+function busy(on,label='Working...',sub='Yahoo can be slow. The moving bar means something is happening.'){clearInterval(state.busyTimer);$('busyLabel').textContent=on?label:'Ready';$('busySub').textContent=on?sub:'Use Load counts first for the smoothest cleanup session.';const f=$('mainProgress');if(on){let p=8;f.classList.add('busy');f.style.width=p+'%';state.busyTimer=setInterval(()=>{p=Math.min(92,p+Math.max(1,(94-p)*.08));f.style.width=p+'%'},350)}else{f.classList.remove('busy');f.style.width='100%';setTimeout(()=>f.style.width='0%',700)}}
+async function api(path,opt={}){try{const r=await fetch(API_BASE+path,opt);const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Request failed');return d}catch(e){if(e.message==='Failed to fetch')throw new Error('Could not reach the Railway backend. Check Railway, then refresh.');throw e}}
+function esc(x){const d=document.createElement('div');d.textContent=x||'';return d.innerHTML}
+function updateCounters(){$('selectedCount').textContent=`${state.selected.size} selected`;$('selectedCountTop').textContent=state.selected.size;$('trashedTotal').textContent=state.trashed;$('startingTotal').textContent=state.startTotal??'-';$('currentTotal').textContent=state.currentTotal??'-'}
+async function refreshStats(){try{const d=await api('/api/stats');if(typeof d.total_emails==='number'){if(state.startTotal===null)state.startTotal=d.total_emails;state.currentTotal=d.total_emails}if(d.trash_folder)$('trashFolder').textContent=`Trash folder: ${d.trash_folder}`;updateCounters()}catch(e){}}
+function renderQuickPicks(){ $('quickPicks').innerHTML=groups.map(([g,items])=>`<div class="pt-3 first:pt-0"><p class="text-xs font-black uppercase mb-1">${g}</p><div class="space-y-2">${items.map(([k,l,d])=>`<button data-key="${k}" class="quick-btn w-full text-left p-3 rounded-2xl border-4 border-black bg-white hover:bg-yellow-100 font-bold shadow-[4px_4px_0_#050505]"><div class="flex justify-between gap-3"><span>${l}</span><span class="pill px-2 py-0.5 text-xs">${state.counts[k]??'-'}</span></div><p class="text-xs mt-1">${d}</p></button>`).join('')}</div></div>`).join('');document.querySelectorAll('.quick-btn').forEach(b=>b.onclick=()=>loadQuickPick(b.dataset.key))}
+function renderEmails(){updateCounters();if(!state.emails.length){$('results').innerHTML='<div class="p-10 text-center font-black">No messages to show.</div>';return}$('results').innerHTML=state.emails.map(m=>`<label class="block p-4 hover:bg-yellow-100 cursor-pointer ${state.selected.has(m.id)?'bg-green-200':'bg-white/70'}"><div class="flex gap-3"><input data-id="${m.id}" type="checkbox" class="email-check mt-1 h-5 w-5 accent-pink-500" ${state.selected.has(m.id)?'checked':''}/><div class="min-w-0 flex-1"><div class="flex flex-wrap gap-2 mb-1"><span class="font-black truncate max-w-xl">${esc((m.sender||'Unknown').split('<')[0].trim())}</span>${m.has_unsubscribe?'<span class="pill text-xs px-2 py-0.5 bg-yellow-200">unsubscribe link</span>':''}<span class="pill text-xs px-2 py-0.5 bg-cyan-200">${esc(m.matched_by||'')}</span></div><p class="text-sm font-bold truncate">${esc(m.subject||'(No subject)')}</p><p class="text-xs mt-1 truncate">${esc(m.snippet||'')}</p><p class="text-xs mt-1 font-bold">${esc(m.date||'')}</p>${m.unsubscribe_links?.length?`<div class="mt-2">${m.unsubscribe_links.map(l=>`<a class="block text-xs font-black underline truncate" target="_blank" href="${esc(l)}">Open unsubscribe link: ${esc(l)}</a>`).join('')}</div>`:''}</div></div></label>`).join('');document.querySelectorAll('.email-check').forEach(b=>b.onchange=e=>{const id=e.target.dataset.id;if(e.target.checked){state.selected.add(id);sound('coin')}else state.selected.delete(id);renderEmails()})}
+function renderSenders(items,title,sub){state.emails=[];state.selected.clear();state.currentRecipe=null;updateCounters();$('resultsTitle').textContent=title;$('resultsSub').textContent=sub;if(!items.length){$('results').innerHTML='<div class="p-10 text-center font-black">No sender groups found.</div>';return}$('results').innerHTML=items.map(x=>`<div class="p-4 bg-white/70 hover:bg-yellow-100"><div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><p class="font-black text-lg">${esc(x.domain||x.sender||'Unknown')}</p><p class="text-sm font-bold">${esc(x.sender||'')}</p>${x.samples?`<ul class="mt-2 text-xs font-bold list-disc list-inside">${x.samples.map(s=>`<li>${esc(typeof s==='string'?s:s.subject)}</li>`).join('')}</ul>`:''}${x.links?`<div class="mt-2">${x.links.map(l=>`<a target="_blank" class="block text-xs font-black underline truncate" href="${esc(l)}">Open unsubscribe link: ${esc(l)}</a>`).join('')}</div>`:''}</div><div class="flex items-center gap-2"><span class="pill px-3 py-1">${x.count} found</span><button data-sender="${esc(x.domain||x.sender)}" class="sender-preview btn">Preview sender</button></div></div></div>`).join('');document.querySelectorAll('.sender-preview').forEach(b=>b.onclick=()=>previewSender(b.dataset.sender))}
+async function connect(e){e.preventDefault();$('connectBtn').disabled=true;$('connectBtn').textContent='Connecting...';busy(true,'Connecting to Yahoo...','Logging in through Railway.');try{const d=await api('/api/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('emailInput').value,password:$('passwordInput').value})});$('statusBadge').textContent=`Connected: ${d.email}`;$('statusBadge').className='pill px-3 py-2 bg-green-200';$('disconnectBtn').classList.remove('hidden');$('app').classList.remove('hidden');$('progressPanel').classList.remove('hidden');notice('Connected. Start with Load counts.', 'success');sound('fanfare');confetti(40);await refreshStats();await checkFolders()}catch(e){notice(e.message,'error')}finally{busy(false);$('connectBtn').disabled=false;$('connectBtn').textContent='Connect'}}
+async function checkFolders(){try{const d=await api('/api/folders');$('trashFolder').textContent=`Trash folder: ${d.trash_folder||'Trash'}`}catch(e){$('trashFolder').textContent='Trash folder: not detected'}}
+async function loadCounts(){$('countBtn').disabled=true;$('countBtn').textContent='Counting...';busy(true,'Counting quick picks...','This makes the app work better before cleanup.');try{const d=await api('/api/quick-pick-counts');state.counts=d.counts||{};renderQuickPicks();notice('Counts loaded. Now pick a bucket.', 'success');sound('sparkle');confetti(35)}catch(e){notice(e.message,'error')}finally{busy(false);$('countBtn').disabled=false;$('countBtn').textContent='Load counts'}}
+async function loadQuickPick(key,auto=false){state.selected.clear();state.currentRecipe=key;$('resultsTitle').textContent=key.replaceAll('_',' ');$('resultsSub').textContent=auto?'Auto-loading the next batch...':'Loading preview...';$('results').innerHTML='<div class="p-10 text-center font-black">Loading Yahoo preview...</div>';busy(true,`${auto?'Auto-loading next batch of ':'Loading '}${key.replaceAll('_',' ')}...`,'Fetching up to 75 matching emails.');try{const d=await api(`/api/quick-pick/${encodeURIComponent(key)}?limit=75`);state.emails=d.emails||[];$('resultsSub').textContent=`Showing ${d.shown||state.emails.length} of ${d.total||0}. Review before moving anything.`;renderEmails();sound(auto?'sparkle':'pop');if(auto)confetti(25)}catch(e){state.emails=[];renderEmails();notice(e.message,'error')}finally{busy(false)}}
+async function manualSearch(){state.selected.clear();state.currentRecipe=null;$('resultsTitle').textContent='Manual search';$('resultsSub').textContent='Loading preview...';$('results').innerHTML='<div class="p-10 text-center font-black">Searching Yahoo...</div>';busy(true,'Searching Yahoo...','Searching your inbox with the filters.');try{const d=await api('/api/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:$('searchQuery').value,subject:$('searchSubject').value,sender:$('searchSender').value,since:$('searchSince').value,before:$('searchBefore').value,read_state:$('readState').value,limit:75})});state.emails=d.emails||[];$('resultsSub').textContent=`Showing ${d.shown||state.emails.length} of ${d.total||0}. Review before moving anything.`;renderEmails();sound('pop')}catch(e){notice(e.message,'error')}finally{busy(false)}}
+function decrement(moved){state.trashed+=moved;if(typeof state.currentTotal==='number')state.currentTotal=Math.max(0,state.currentTotal-moved);if(state.currentRecipe&&typeof state.counts[state.currentRecipe]==='number'){state.counts[state.currentRecipe]=Math.max(0,state.counts[state.currentRecipe]-moved);renderQuickPicks()}updateCounters()}
+async function moveSelected(){const ids=[...state.selected];if(!ids.length)return notice('Select messages first.','error');if(!confirm(`Move ${ids.length} selected message(s) to Yahoo Trash?`))return;const recipe=state.currentRecipe;$('moveSelectedBtn').disabled=true;$('moveSelectedBtn').textContent='Moving...';busy(true,`Moving ${ids.length} message(s) to Trash...`,'After this, the app will auto-load the next batch for this quick pick.');try{const d=await api('/api/move-to-trash',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email_ids:ids})});const moved=d.moved||d.deleted||0;state.emails=state.emails.filter(m=>!ids.includes(m.id));state.selected.clear();decrement(moved);renderEmails();notice(`${d.message||'Moved messages.'} ${recipe?'Auto-loading the next batch...':''}`,'success');sound(moved>=50?'fanfare':'trash');confetti(moved>=50?90:45);setTimeout(refreshStats,1500);if(recipe&&moved>0)setTimeout(()=>loadQuickPick(recipe,true),1200)}catch(e){notice(e.message,'error')}finally{busy(false);$('moveSelectedBtn').disabled=false;$('moveSelectedBtn').textContent='Move selected to Trash'}}
+async function loadTopSenders(){state.currentRecipe=null;$('resultsTitle').textContent='Top senders';$('resultsSub').textContent='Sampling recent inbox messages...';$('results').innerHTML='<div class="p-10 text-center font-black">Building sender list...</div>';busy(true,'Finding top senders...','Sampling recent messages and grouping senders.');try{const d=await api('/api/top-senders?sample=600');renderSenders(d.senders||[],'Top senders',`Sampled ${d.sampled||0} recent messages.`);sound('success');confetti(25)}catch(e){notice(e.message,'error')}finally{busy(false)}}
+async function loadUnsubscribeFinder(){state.currentRecipe=null;$('resultsTitle').textContent='Unsubscribe finder';$('resultsSub').textContent='Scanning recent messages...';$('results').innerHTML='<div class="p-10 text-center font-black">Finding unsubscribe links...</div>';busy(true,'Finding unsubscribe links...','Scanning recent messages for unsubscribe URLs.');try{const d=await api('/api/unsubscribe-finder?sample=300');renderSenders(d.groups||[],'Unsubscribe finder',`Sampled ${d.sampled||0} recent messages.`);sound('success');confetti(25)}catch(e){notice(e.message,'error')}finally{busy(false)}}
+async function previewSender(sender){state.selected.clear();state.currentRecipe=null;$('resultsTitle').textContent=`Sender: ${sender}`;$('resultsSub').textContent='Loading sender preview...';$('results').innerHTML='<div class="p-10 text-center font-black">Loading sender messages...</div>';busy(true,`Loading ${sender}...`,'Fetching messages from this sender.');try{const d=await api(`/api/sender/${encodeURIComponent(sender)}?limit=75`);state.emails=d.emails||[];$('resultsSub').textContent=`Showing ${d.shown||state.emails.length} of ${d.total||0}. Review before moving anything.`;renderEmails();sound('pop')}catch(e){notice(e.message,'error')}finally{busy(false)}}
+async function disconnect(){try{await api('/api/disconnect',{method:'POST'})}catch(e){}state.emails=[];state.selected.clear();state.currentRecipe=null;$('statusBadge').textContent='Not connected';$('statusBadge').className='pill px-3 py-2';$('disconnectBtn').classList.add('hidden');$('app').classList.add('hidden');$('progressPanel').classList.add('hidden');renderEmails();notice('Disconnected.','info')}
+$('loginForm').onsubmit=connect;$('disconnectBtn').onclick=disconnect;$('soundBtn').onclick=()=>{state.sound=!state.sound;$('soundBtn').textContent=`Sound: ${state.sound?'On':'Off'}`;if(state.sound){sound('fanfare');confetti(20)}};$('countBtn').onclick=loadCounts;$('searchBtn').onclick=manualSearch;$('selectVisibleBtn').onclick=()=>{state.emails.forEach(m=>state.selected.add(m.id));renderEmails();sound('coin')};$('clearSelectedBtn').onclick=()=>{state.selected.clear();renderEmails()};$('moveSelectedBtn').onclick=moveSelected;$('topSendersBtn').onclick=loadTopSenders;$('unsubscribeFinderBtn').onclick=loadUnsubscribeFinder;renderQuickPicks();renderEmails();
+</script>
 </body>
 </html>
